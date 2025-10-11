@@ -1,7 +1,7 @@
 // BridgeStan Integration Module
 // This module handles Stan model compilation, optimization, and sampling
 
-use bridgestan::{Model, StanLibrary, open_library, compile_model};
+use bridgestan::{Model, StanLibrary, open_library, compile_model, download_bridgestan_src};
 use serde_json::json;
 use crate::Result;
 use std::ffi::CString;
@@ -15,29 +15,53 @@ pub struct StanModel {
 impl StanModel {
     /// Compile and load the Prophet Stan model
     pub fn new() -> Result<Self> {
-        // Get the path to prophet.stan
-        let stan_file = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("stan")
-            .join("prophet.stan");
+        // Try multiple paths to find prophet.stan
+        let possible_paths = vec![
+            // 1. Relative to current directory (when running from project root)
+            PathBuf::from("stan/prophet.stan"),
+            // 2. In the same directory as the executable
+            std::env::current_exe()
+                .ok()
+                .and_then(|exe| exe.parent().map(|p| p.join("stan/prophet.stan")))
+                .unwrap_or_else(|| PathBuf::from("stan/prophet.stan")),
+            // 3. Environment variable override
+            std::env::var("SEER_STAN_FILE")
+                .ok()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("stan/prophet.stan")),
+        ];
         
-        if !stan_file.exists() {
-            return Err(crate::SeerError::StanError(
-                format!("Stan file not found: {:?}", stan_file)
-            ));
-        }
-        
-        // Convert to string for compile_model (it needs a &str)
-        let stan_file_str = stan_file.to_str()
+        // Find the first path that exists
+        let stan_file = possible_paths
+            .iter()
+            .find(|p| p.exists())
             .ok_or_else(|| crate::SeerError::StanError(
-                "Invalid path to Stan file".to_string()
+                format!(
+                    "Stan file not found. Tried:\n  - {}\nSet SEER_STAN_FILE environment variable to specify location.",
+                    possible_paths.iter()
+                        .map(|p| p.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join("\n  - ")
+                )
             ))?;
         
+        // Get BridgeStan source path
+        // First try environment variable, then download
+        let bridgestan_path = if let Ok(bs_path) = std::env::var("BRIDGESTAN") {
+            PathBuf::from(bs_path)
+        } else {
+            // Download BridgeStan source code
+            download_bridgestan_src()
+                .map_err(|e| crate::SeerError::StanError(
+                    format!("Failed to download BridgeStan source: {:?}", e)
+                ))?
+        };
+        
         // Compile the Stan model
-        // compile_model expects (&Path, &Path, &[&str], &[&str])
-        let output_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target");
+        // compile_model signature: (&bridgestan_src, &stan_file, &stanc_args, &make_args)
         let model_path = compile_model(
-            Path::new(stan_file_str),  // &Path to .stan file
-            &output_dir,                // Output directory as &Path
+            &bridgestan_path,           // BridgeStan source directory
+            stan_file.as_path(),        // Path to .stan file
             &[],                        // stanc args
             &[]                         // make args
         )
@@ -72,8 +96,8 @@ impl StanModel {
         let k = x.first().map(|v| v.len()).unwrap_or(0);
         let s = t_change.len();
         
-        // Flatten X matrix for Stan (row-major)
-        let x_flat: Vec<f64> = x.iter().flatten().cloned().collect();
+        // X is already in correct format (Vec<Vec<f64>>), each row is one observation
+        // Stan expects matrix[T,K] as an array of T rows, each with K elements
         
         // Prepare data in JSON format matching Stan's data block
         let data = json!({
@@ -84,7 +108,7 @@ impl StanModel {
             "y": y,
             "S": s,
             "t_change": t_change,
-            "X": x_flat,  // Stan expects flattened matrix
+            "X": x,  // Stan expects array of arrays for matrix[T,K]
             "sigmas": sigmas,
             "tau": tau,
             "trend_indicator": trend_indicator,

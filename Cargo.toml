@@ -20,7 +20,7 @@ chrono = "0.4"
 pyo3 = { version = "0.20", features = ["extension-module"] }
 numpy = "0.20"  # For numpy array conversion
 pythonize = "0.20"  # For serialization
-bridgestan = "2.7.0"
+bridgestan = { version = "2.7.0", features = ["download-bridgestan-src"] }
 
 [package.metadata.maturin]
 name = "seer"

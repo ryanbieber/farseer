@@ -42,37 +42,29 @@ def test_ols_fitting_still_works():
 
 
 def test_stan_compilation_attempt():
-    """Test Stan fitting (will use placeholder until optimization API is ready)"""
-    print("\nTesting Stan fitting attempt...")
+    """Test Stan compilation and fitting (currently using placeholder optimization)"""
+    print("\nTesting Stan compilation and fitting...")
     
     df = pd.DataFrame({
         'ds': pd.date_range('2020-01-01', periods=50, freq='D'),
         'y': np.linspace(10, 15, 50) + np.random.normal(0, 0.3, 50)
     })
     
-    try:
-        m = Seer(
-            growth='linear',
-            use_stan=True,  # Enable Stan
-            yearly_seasonality=False,
-            weekly_seasonality=False
-        )
-        m.fit(df)
-        
-        # If it doesn't error, it's using the placeholder values
-        # Once optimization API is implemented, we should get real fitted params
-        future = m.make_future_dataframe(periods=10)
-        forecast = m.predict(future)
-        
-        print("✅ Stan mode executed (using placeholder optimization)")
-        print(f"   Note: Actual Stan optimization pending BridgeStan API research")
-        
-    except Exception as e:
-        if "Stan" in str(e) or "compile" in str(e):
-            print(f"⚠️  Stan compilation/optimization not yet fully implemented: {e}")
-            print("   This is expected - infrastructure is ready, optimization API needed")
-        else:
-            raise
+    m = Seer(
+        growth='linear',
+        use_stan=True,  # Enable Stan
+        yearly_seasonality=False,
+        weekly_seasonality=False
+    )
+    m.fit(df)
+    
+    # Model should fit successfully with Stan enabled
+    future = m.make_future_dataframe(periods=10)
+    forecast = m.predict(future)
+    
+    assert len(forecast) == 60
+    print("✅ Stan compilation and fitting successful")
+    print("   Note: Using placeholder optimization values until BridgeStan optimization API is implemented")
 
 
 def test_stan_serialization():
