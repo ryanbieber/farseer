@@ -82,29 +82,58 @@ functions {
   ) {
     return rep_vector(m, T);
   }
+
+  // Partial sum function for reduce_sum
+  real partial_sum(
+    array[] int slice_n,
+    int start,
+    int end,
+    vector y,
+    matrix X_sa,
+    matrix X_sm,
+    vector trend,
+    vector beta,
+    real sigma_obs,
+    vector weights
+  ) {
+    real lp = 0;
+    for (i in start:end) {
+      int n = slice_n[i - start + 1];
+      real mu = dot_product(X_sa[n], beta) + trend[n] * (1 + dot_product(X_sm[n], beta));
+      lp += weights[n] * normal_lpdf(y[n] | mu, sigma_obs);
+    }
+    return lp;
+  }
 }
 
 data {
   int T;                // Number of time periods
-  int<lower=1> K;       // Number of regressors
+  int<lower=0> K;       // Number of regressors (can be 0)
   vector[T] t;          // Time
   vector[T] cap;        // Capacities for logistic trend
   vector[T] y;          // Time series
   int S;                // Number of changepoints
   vector[S] t_change;   // Times of trend changepoints
   matrix[T,K] X;        // Regressors
-  vector[K] sigmas;     // Scale on seasonality prior
+  vector<lower=0>[K] sigmas;     // Scale on seasonality prior (must be positive)
   real<lower=0> tau;    // Scale on changepoints prior
   int trend_indicator;  // 0 for linear, 1 for logistic, 2 for flat
   vector[K] s_a;        // Indicator of additive features
   vector[K] s_m;        // Indicator of multiplicative features
   vector<lower=0>[T] weights;  // Observation weights
+  int<lower=1> grainsize;  // Grainsize for reduce_sum (e.g., 1)
 }
 
 transformed data {
   matrix[T, S] A = get_changepoint_matrix(t, t_change, T, S);
   matrix[T, K] X_sa = X .* rep_matrix(s_a', T);
   matrix[T, K] X_sm = X .* rep_matrix(s_m', T);
+  array[T] int n_seq;
+  
+  // Create sequence of indices for reduce_sum
+  for (n in 1:T) {
+    n_seq[n] = n;
+  }
 }
 
 parameters {
@@ -132,10 +161,26 @@ model {
   m ~ normal(0, 5);
   delta ~ double_exponential(0, tau);
   sigma_obs ~ normal(0, 0.5);
-  beta ~ normal(0, sigmas);
-
-  // Likelihood with weights
-  for (i in 1:T) {
-    target += weights[i] * normal_lpdf(y[i] | dot_product(X_sa[i], beta) + trend[i] * (1 + dot_product(X_sm[i], beta)), sigma_obs);
+  
+  // Only apply beta prior if there are regressors
+  if (K > 0) {
+    for (i in 1:K) {
+      // Ensure sigma is positive, use max to avoid zero scale
+      beta[i] ~ normal(0, fmax(sigmas[i], 0.01));
+    }
   }
+
+  // Likelihood with reduce_sum for multithreading
+  target += reduce_sum(
+    partial_sum,
+    n_seq,
+    grainsize,
+    y,
+    X_sa,
+    X_sm,
+    trend,
+    beta,
+    sigma_obs,
+    weights
+  );
 }

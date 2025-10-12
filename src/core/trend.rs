@@ -64,25 +64,6 @@ pub fn changepoint_matrix(t: &[f64], t_change: &[f64]) -> Vec<Vec<f64>> {
     a
 }
 
-/// Ordinary least squares to estimate k, m for linear trend y ~ k*t + m
-pub fn ols_linear_trend(t: &[f64], y: &[f64]) -> (f64, f64) {
-    let n = t.len() as f64;
-    if n == 0.0 { return (0.0, 0.0); }
-    let sum_t: f64 = t.iter().sum();
-    let sum_y: f64 = y.iter().sum();
-    let sum_tt: f64 = t.iter().map(|v| v * v).sum();
-    let sum_ty: f64 = t.iter().zip(y).map(|(ti, yi)| ti * yi).sum();
-    let denom = n * sum_tt - sum_t * sum_t;
-    if denom.abs() < 1e-12 {
-        // fallback: flat
-        let m = sum_y / n;
-        return (0.0, m);
-    }
-    let k = (n * sum_ty - sum_t * sum_y) / denom;
-    let m = (sum_y - k * sum_t) / n;
-    (k, m)
-}
-
 /// Piecewise linear trend with changepoints
 pub fn piecewise_linear(k: f64, m: f64, delta: &[f64], t: &[f64], a: &[Vec<f64>], t_change: &[f64]) -> Vec<f64> {
     // trend = (k + A*delta) * t + (m + A*(-t_change .* delta))
@@ -104,6 +85,91 @@ pub fn piecewise_linear(k: f64, m: f64, delta: &[f64], t: &[f64], a: &[Vec<f64>]
 /// Flat trend: constant baseline
 pub fn flat_trend(m: f64, n: usize) -> Vec<f64> {
     vec![m; n]
+}
+
+/// Initialize linear growth parameters (following Prophet's approach)
+/// Calculates k and m such that the linear function passes through
+/// the first and last points in the scaled time series
+/// Returns (k, m) where k is the growth rate and m is the offset
+pub fn linear_growth_init(t: &[f64], y_scaled: &[f64]) -> (f64, f64) {
+    if t.is_empty() || y_scaled.is_empty() {
+        return (0.0, 0.0);
+    }
+    
+    let i0 = 0;
+    let i1 = t.len() - 1;
+    let t_range = t[i1] - t[i0];
+    
+    // Initialize the rate
+    let k = if t_range > 0.0 {
+        (y_scaled[i1] - y_scaled[i0]) / t_range
+    } else {
+        0.0
+    };
+    
+    // Initialize the offset
+    let m = y_scaled[i0] - k * t[i0];
+    
+    (k, m)
+}
+
+/// Initialize logistic growth parameters (following Prophet's approach)
+/// Calculates k and m for logistic growth such that the function passes
+/// through the first and last points in the scaled time series
+/// Returns (k, m) where k is the growth rate and m is the offset
+pub fn logistic_growth_init(t: &[f64], y_scaled: &[f64], cap_scaled: &[f64]) -> (f64, f64) {
+    if t.is_empty() || y_scaled.is_empty() || cap_scaled.is_empty() {
+        return (0.0, 0.0);
+    }
+    
+    let i0 = 0;
+    let i1 = t.len() - 1;
+    let t_range = t[i1] - t[i0];
+    
+    if t_range <= 0.0 {
+        return (0.0, y_scaled.iter().sum::<f64>() / y_scaled.len() as f64);
+    }
+    
+    // Force valid values, in case y > cap or y < 0
+    let c0 = cap_scaled[i0];
+    let c1 = cap_scaled[i1];
+    let y0 = (0.01 * c0).max((0.99 * c0).min(y_scaled[i0]));
+    let y1 = (0.01 * c1).max((0.99 * c1).min(y_scaled[i1]));
+    
+    let r0 = c0 / y0;
+    let r1 = c1 / y1;
+    
+    // Ensure r0 and r1 are different enough
+    let (r0, r1) = if (r0 - r1).abs() <= 0.01 {
+        (1.05 * r0, r1)
+    } else {
+        (r0, r1)
+    };
+    
+    let l0 = (r0 - 1.0).ln();
+    let l1 = (r1 - 1.0).ln();
+    
+    // Initialize the offset
+    let m = l0 * t_range / (l0 - l1);
+    
+    // Initialize the rate
+    let k = (l0 - l1) / t_range;
+    
+    (k, m)
+}
+
+/// Initialize flat growth parameters (following Prophet's approach)
+/// Sets k=0 and m to the mean of y_scaled
+/// Returns (k, m) where k is 0 and m is the mean
+pub fn flat_growth_init(y_scaled: &[f64]) -> (f64, f64) {
+    if y_scaled.is_empty() {
+        return (0.0, 0.0);
+    }
+    
+    let k = 0.0;
+    let m = y_scaled.iter().sum::<f64>() / y_scaled.len() as f64;
+    
+    (k, m)
 }
 
 /// Logistic gamma: offset adjustments for piecewise continuity
@@ -270,17 +336,6 @@ mod tests {
     }
 
     #[test]
-    fn test_ols_linear_trend() {
-        let t = vec![0.0, 1.0, 2.0, 3.0, 4.0];
-        let y = vec![10.0, 12.0, 14.0, 16.0, 18.0];  // y = 10 + 2*t
-        
-        let (k, m) = ols_linear_trend(&t, &y);
-        
-        assert!((k - 2.0).abs() < 1e-10);
-        assert!((m - 10.0).abs() < 1e-10);
-    }
-
-    #[test]
     fn test_piecewise_linear_no_changepoints() {
         let k = 2.0;
         let m = 10.0;
@@ -317,6 +372,52 @@ mod tests {
         // Gamma values ensure continuity
         assert!(gamma[0].abs() < 10.0);  // Reasonable magnitude
         assert!(gamma[1].abs() < 10.0);
+    }
+
+    #[test]
+    fn test_linear_growth_init() {
+        // Test with Prophet's expected values (from their test suite)
+        // This is scaled data from their test case
+        let t = vec![0.0, 0.5, 1.0];
+        let y_scaled = vec![0.5307511, 0.6, 0.8362182];
+        
+        let (k, m) = linear_growth_init(&t, &y_scaled);
+        
+        // k should be approximately (0.8362182 - 0.5307511) / 1.0 = 0.3054671
+        assert!((k - 0.3054671).abs() < 0.001, "k = {}, expected ~0.3055", k);
+        // m should be approximately 0.5307511 - 0 * k = 0.5307511
+        assert!((m - 0.5307511).abs() < 0.001, "m = {}, expected ~0.5308", m);
+    }
+
+    #[test]
+    fn test_logistic_growth_init() {
+        // Test with Prophet's expected behavior
+        let t = vec![0.0, 0.5, 1.0];
+        let y_scaled = vec![0.3, 0.5, 0.7];
+        let cap_scaled = vec![1.0, 1.0, 1.0];
+        
+        let (k, m) = logistic_growth_init(&t, &y_scaled, &cap_scaled);
+        
+        // Values should be reasonable for logistic growth
+        assert!(k > 0.0, "k should be positive for growth");
+        assert!(m.abs() < 10.0, "m should be reasonable");
+    }
+
+    #[test]
+    fn test_flat_growth_init() {
+        let y_scaled = vec![0.4, 0.5, 0.6, 0.5, 0.4];
+        
+        let (k, m) = flat_growth_init(&y_scaled);
+        
+        assert_eq!(k, 0.0, "k should be 0 for flat growth");
+        assert!((m - 0.48).abs() < 0.01, "m should be mean of y_scaled");
+    }
+
+    #[test]
+    fn test_linear_growth_init_empty() {
+        let (k, m) = linear_growth_init(&[], &[]);
+        assert_eq!(k, 0.0);
+        assert_eq!(m, 0.0);
     }
 
     #[test]

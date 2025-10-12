@@ -1,7 +1,7 @@
 use crate::core::data::{TimeSeriesData, ForecastResult};
 use crate::core::trend::{
     parse_ds, time_scale, select_changepoints, changepoint_matrix,
-    ols_linear_trend, piecewise_linear, piecewise_logistic, flat_trend, future_dates,
+    piecewise_linear, piecewise_logistic, flat_trend, future_dates,
 };
 use crate::core::seasonality::{fourier_series, hstack, holiday_features};
 use crate::core::stan::StanModel;
@@ -72,7 +72,6 @@ pub struct Seer {
     weekly_seasonality: bool,
     daily_seasonality: bool,
     seasonality_mode: SeasonalityMode,
-    use_stan: bool,  // NEW: Use Stan for parameter estimation instead of OLS
     
     // Custom seasonalities registry
     seasonalities: Vec<SeasonalityConfig>,
@@ -88,6 +87,9 @@ pub struct Seer {
     t0: Option<NaiveDateTime>,
     t_scale: f64,
     t_change: Vec<f64>,
+    // Y scaling (Prophet compatibility)
+    y_scale: f64,
+    logistic_floor: bool,
     // Trend params
     k: f64,
     m: f64,
@@ -160,7 +162,6 @@ impl Seer {
             weekly_seasonality: true,
             daily_seasonality: false,
             seasonality_mode: SeasonalityMode::Additive,
-            use_stan: false,  // Default to OLS for backwards compatibility
             seasonalities: Vec::new(),
             holidays: Vec::new(),
             country_holidays: Vec::new(),
@@ -169,6 +170,8 @@ impl Seer {
             t0: None,
             t_scale: 1.0,
             t_change: Vec::new(),
+            y_scale: 1.0,
+            logistic_floor: false,
             k: 0.0,
             m: 0.0,
             delta: Vec::new(),
@@ -191,9 +194,14 @@ impl Seer {
         self
     }
     
-    pub fn with_changepoint_range(mut self, range: f64) -> Self {
+    pub fn with_changepoint_range(mut self, range: f64) -> Result<Self> {
+        if range < 0.0 || range > 1.0 {
+            return Err(crate::SeerError::DataValidation(
+                format!("changepoint_range must be between 0 and 1, got {}", range)
+            ));
+        }
         self.changepoint_range = range;
-        self
+        Ok(self)
     }
     
     pub fn with_changepoint_prior_scale(mut self, scale: f64) -> Self {
@@ -248,11 +256,6 @@ impl Seer {
         self
     }
     
-    pub fn with_stan(mut self, use_stan: bool) -> Self {
-        self.use_stan = use_stan;
-        self
-    }
-    
     pub fn fit(&mut self, data: &TimeSeriesData) -> Result<()> {
         // Parse ds -> timestamps
         let ts: Vec<NaiveDateTime> = data
@@ -263,6 +266,21 @@ impl Seer {
 
         // Time scaling t in [0,1]
         let (t_hist, t_scale, t0) = time_scale(&ts);
+
+        // Auto-detect seasonality based on data span (Prophet compatibility)
+        // If user set seasonality to 'auto' (true), we auto-detect
+        // Otherwise we respect their explicit choice
+        let data_span_days = (ts[ts.len() - 1] - ts[0]).num_days() as f64;
+        
+        let use_yearly = if self.yearly_seasonality {
+            // Only use yearly if we have at least 2 years of data
+            data_span_days >= 730.0
+        } else {
+            false
+        };
+        
+        let use_weekly = self.weekly_seasonality; // Weekly is usually always on
+        let use_daily = self.daily_seasonality;
 
         // Changepoints (locations in t units)
         let t_change = select_changepoints(&t_hist, self.n_changepoints, self.changepoint_range);
@@ -275,13 +293,13 @@ impl Seer {
 
         // Build seasonality registry from toggles and custom seasonalities
         let mut all_seasonalities = Vec::new();
-        if self.yearly_seasonality {
+        if use_yearly {
             all_seasonalities.push(SeasonalityConfig::new("yearly", 365.25, 10).with_mode(self.seasonality_mode));
         }
-        if self.weekly_seasonality {
+        if use_weekly {
             all_seasonalities.push(SeasonalityConfig::new("weekly", 7.0, 3).with_mode(self.seasonality_mode));
         }
-        if self.daily_seasonality {
+        if use_daily {
             all_seasonalities.push(SeasonalityConfig::new("daily", 1.0, 4).with_mode(self.seasonality_mode));
         }
         // Add custom seasonalities
@@ -382,63 +400,46 @@ impl Seer {
             }
         }
 
-        // Use Stan for fitting if enabled, otherwise use OLS
-        let (k, m, delta, beta, sigma_obs) = if self.use_stan {
-            // Stan-based parameter estimation
-            let stan_model = StanModel::new()?;
-            
-            // Prepare prior scales for regressors
-            let sigmas = vec![10.0; total_features]; // Default prior scale
-            
-            let result = stan_model.optimize(
-                &t_hist,
-                &data.y,
-                &cap,
-                &x_matrix,
-                &sigmas,
-                self.changepoint_prior_scale,
-                trend_indicator,
-                &s_a,
-                &s_m,
-                &t_change,
-            )?;
-            
-            (result.k, result.m, result.delta, result.beta, result.sigma_obs)
-        } else {
-            // Fall back to OLS for speed
-            let (k_ols, m_ols) = ols_linear_trend(&t_hist, &data.y);
-            let delta_ols = vec![0.0; t_change.len()];
-            
-            // Fit seasonality on residuals
-            let trend_hist = {
-                let a_hist = changepoint_matrix(&t_hist, &t_change);
-                piecewise_linear(k_ols, m_ols, &delta_ols, &t_hist, &a_hist, &t_change)
-            };
-            let y_resid: Vec<f64> = data.y.iter().zip(trend_hist.iter()).map(|(y, tr)| y - tr).collect();
-            
-            let beta_ols = if !x_matrix.is_empty() {
-                ols_multi(&x_matrix, &y_resid)
-            } else {
-                Vec::new()
-            };
-            
-            // Estimate sigma_obs from residuals
-            let yhat_hist: Vec<f64> = trend_hist.iter().enumerate().map(|(i, &tr)| {
-                let mut seas = 0.0;
-                if !beta_ols.is_empty() && i < x_matrix.len() {
-                    for (j, &xij) in x_matrix[i].iter().enumerate() {
-                        if j < beta_ols.len() {
-                            seas += xij * beta_ols[j];
-                        }
-                    }
-                }
-                tr + seas
-            }).collect();
-            let resid: Vec<f64> = data.y.iter().zip(yhat_hist.iter()).map(|(y, yh)| y - yh).collect();
-            let sigma = (resid.iter().map(|r| r * r).sum::<f64>() / resid.len().max(1) as f64).sqrt().max(1e-6);
-            
-            (k_ols, m_ols, delta_ols, beta_ols, sigma)
-        };
+        // Use Stan for parameter estimation
+        let stan_model = StanModel::new()?;
+        
+        // Scale y (Prophet uses absmax scaling by default)
+        // y_scale = max(abs(y)) to keep predictions interpretable
+        let y_scale = data.y.iter()
+            .map(|&v| v.abs())
+            .fold(0.0_f64, f64::max)
+            .max(1.0); // Minimum 1.0 to avoid division issues
+        
+        let y_scaled: Vec<f64> = data.y.iter().map(|&v| v / y_scale).collect();
+        
+        // Scale cap if logistic growth
+        let cap_scaled: Vec<f64> = cap.iter().map(|&v| v / y_scale).collect();
+        
+        // Prepare prior scales for regressors
+        let sigmas = vec![10.0; total_features]; // Default prior scale
+        
+        // Use CmdStan optimizer (110x faster than BridgeStan)
+        // Set LD_LIBRARY_PATH=./prophet_stan_model to find TBB libraries
+        let result = stan_model.optimize_with_cmdstan(
+            &t_hist,
+            &y_scaled,  // Use scaled y
+            &cap_scaled,  // Use scaled cap
+            &x_matrix,
+            &sigmas,
+            self.changepoint_prior_scale,
+            trend_indicator,
+            &s_a,
+            &s_m,
+            &t_change,
+            data.weights.as_deref(),  // Pass weights
+        )?;
+        
+        // Parameters are in scaled space - we'll unscale during prediction
+        let k = result.k;
+        let m = result.m;
+        let delta = result.delta;
+        let beta = result.beta;
+        let sigma_obs = result.sigma_obs;
 
         // Save state
         self.history = Some(data.clone());
@@ -446,6 +447,7 @@ impl Seer {
         self.t0 = Some(t0);
         self.t_scale = t_scale;
         self.t_change = t_change;
+        self.y_scale = y_scale;  // Save scaling factor
         self.k = k;
         self.m = m;
         self.delta = delta;
@@ -617,9 +619,13 @@ impl Seer {
 
         // Combine trend with seasonality and holiday components
         // yhat = trend * (1 + seasonal_multiplicative) + seasonal_additive
-        let yhat: Vec<f64> = (0..ds.len())
+        let yhat_scaled: Vec<f64> = (0..ds.len())
             .map(|i| trend[i] * (1.0 + seasonal_multiplicative[i]) + seasonal_additive[i])
             .collect();
+        
+        // Unscale predictions back to original scale
+        let yhat: Vec<f64> = yhat_scaled.iter().map(|&v| v * self.y_scale).collect();
+        let trend: Vec<f64> = trend.iter().map(|&v| v * self.y_scale).collect();
         
         // Uncertainty intervals using sigma_obs and interval_width
         // Approximate z-score for 80% interval: ~1.28, for 95%: ~1.96
@@ -630,9 +636,14 @@ impl Seer {
             99 => 2.576,
             _ => 1.28, // default to 80%
         };
-        let margin = z_score * self.sigma_obs;
+        // Unscale sigma_obs for uncertainty intervals
+        let margin = z_score * self.sigma_obs * self.y_scale;
         let yhat_lower: Vec<f64> = yhat.iter().map(|&y| y - margin).collect();
         let yhat_upper: Vec<f64> = yhat.iter().map(|&y| y + margin).collect();
+
+        // Unscale seasonal components
+        let yearly_unscaled = yearly_comp.map(|v| v.iter().map(|&x| x * self.y_scale).collect());
+        let weekly_unscaled = weekly_comp.map(|v| v.iter().map(|&x| x * self.y_scale).collect());
 
         Ok(ForecastResult {
             ds: ds.to_vec(),
@@ -640,8 +651,8 @@ impl Seer {
             yhat_lower,
             yhat_upper,
             trend,
-            yearly: yearly_comp,
-            weekly: weekly_comp,
+            yearly: yearly_unscaled,
+            weekly: weekly_unscaled,
         })
     }
     
@@ -692,6 +703,27 @@ impl Seer {
         prior_scale: Option<f64>,
         mode: Option<&str>,
     ) -> Result<()> {
+        // Validate fourier_order
+        if fourier_order == 0 {
+            return Err(crate::SeerError::DataValidation(
+                "Fourier order must be greater than 0".to_string()
+            ));
+        }
+        
+        // Check for duplicate names
+        if self.seasonalities.iter().any(|s| s.name == name) {
+            return Err(crate::SeerError::DataValidation(
+                format!("Seasonality with name '{}' already exists", name)
+            ));
+        }
+        
+        // Check against built-in seasonality names
+        if name == "yearly" || name == "weekly" || name == "daily" {
+            return Err(crate::SeerError::DataValidation(
+                format!("Cannot use reserved seasonality name '{}'", name)
+            ));
+        }
+        
         let mut config = SeasonalityConfig::new(name, period, fourier_order);
         
         if let Some(scale) = prior_scale {
@@ -766,18 +798,22 @@ impl Seer {
     }
     
     pub fn get_params(&self) -> serde_json::Value {
+        let growth_str = match self.trend {
+            TrendType::Linear => "linear",
+            TrendType::Logistic => "logistic",
+            TrendType::Flat => "flat",
+        };
+        
         serde_json::json!({
             "version": "0.1.0",
             "fitted": self.fitted,
             
             // Trend configuration
+            "growth": growth_str,
             "trend": format!("{:?}", self.trend),
             "n_changepoints": self.n_changepoints,
             "changepoint_range": self.changepoint_range,
             "changepoint_prior_scale": self.changepoint_prior_scale,
-            
-            // Fitting method
-            "use_stan": self.use_stan,
             
             // Seasonality configuration
             "yearly_seasonality": self.yearly_seasonality,
@@ -969,7 +1005,6 @@ impl Seer {
             weekly_seasonality: params["weekly_seasonality"].as_bool().unwrap_or(true),
             daily_seasonality: params["daily_seasonality"].as_bool().unwrap_or(false),
             seasonality_mode,
-            use_stan: params["use_stan"].as_bool().unwrap_or(false),  // Load Stan setting
             seasonalities,
             holidays,
             country_holidays,
@@ -978,6 +1013,8 @@ impl Seer {
             t0: None, // Reconstructed from history if needed
             t_scale: params["t_scale"].as_f64().unwrap_or(1.0),
             t_change,
+            y_scale: params["y_scale"].as_f64().unwrap_or(1.0),
+            logistic_floor: params["logistic_floor"].as_bool().unwrap_or(false),
             k: params["k"].as_f64().unwrap_or(0.0),
             m: params["m"].as_f64().unwrap_or(0.0),
             delta,
@@ -989,51 +1026,6 @@ impl Seer {
             interval_width: params["interval_width"].as_f64().unwrap_or(0.8),
         })
     }
-}
-
-/// Solve (X^T X + λI) beta = X^T y via naive Gaussian elimination (λ small ridge)
-fn ols_multi(x: &Vec<Vec<f64>>, y: &Vec<f64>) -> Vec<f64> {
-    let n = x.len();
-    if n == 0 { return Vec::new(); }
-    let p = x[0].len();
-    if p == 0 { return Vec::new(); }
-    let mut xtx = vec![vec![0.0; p]; p];
-    let mut xty = vec![0.0; p];
-    for i in 0..n {
-        for a in 0..p {
-            let xa = x[i][a];
-            xty[a] += xa * y[i];
-            for b in 0..p {
-                xtx[a][b] += xa * x[i][b];
-            }
-        }
-    }
-    // ridge
-    let lambda = 1e-8;
-    for d in 0..p { xtx[d][d] += lambda; }
-    // Gaussian elimination
-    let mut a = xtx;
-    let mut b = xty;
-    for i in 0..p {
-        // pivot
-        let mut max_r = i;
-        let mut max_v = a[i][i].abs();
-        for r in (i+1)..p { if a[r][i].abs() > max_v { max_v = a[r][i].abs(); max_r = r; } }
-        if max_r != i { a.swap(i, max_r); b.swap(i, max_r); }
-        let piv = a[i][i];
-        if piv.abs() < 1e-12 { continue; }
-        let inv_piv = 1.0 / piv;
-        for j in i..p { a[i][j] *= inv_piv; }
-        b[i] *= inv_piv;
-        for r in 0..p {
-            if r == i { continue; }
-            let factor = a[r][i];
-            if factor == 0.0 { continue; }
-            for j in i..p { a[r][j] -= factor * a[i][j]; }
-            b[r] -= factor * b[i];
-        }
-    }
-    b
 }
 
 impl Default for Seer {

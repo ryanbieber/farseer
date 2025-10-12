@@ -65,6 +65,25 @@ forecast = m.predict(future)
 print(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail())
 ```
 
+### Examples
+
+Comprehensive examples are available in the `examples/` directory:
+
+- **`quickstart.py`** - Simplest possible example to get started
+- **`basic_forecast.py`** - Basic forecasting with trend and seasonality
+- **`advanced_features.py`** - Logistic growth, custom seasonality, holidays, changepoint tuning
+- **`multiple_frequencies.py`** - Hourly, daily, weekly, monthly, and business day forecasting
+- **`weighted_timeseries.py`** - Using observation weights (implementation guide)
+- **`multithreaded_stan.py`** - Multi-threaded optimization for large datasets
+
+See [`examples/README.md`](examples/README.md) for detailed documentation and [`examples/ADVANCED_FEATURES.md`](examples/ADVANCED_FEATURES.md) for in-depth guides on weighted observations and multi-threading.
+
+```bash
+# Run an example
+python examples/basic_forecast.py
+python examples/advanced_features.py
+```
+
 ### Advanced Features
 
 #### Custom Seasonality

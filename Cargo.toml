@@ -15,12 +15,16 @@ serde_json = "1.0"
 thiserror = "1.0"
 anyhow = "1.0"
 chrono = "0.4"
+tempfile = "3.0"
+
+# Optimization
+argmin = "0.10"
+argmin-math = { version = "0.4", features = ["vec"] }
 
 # Python bindings
-pyo3 = { version = "0.20", features = ["extension-module"] }
-numpy = "0.20"  # For numpy array conversion
-pythonize = "0.20"  # For serialization
-bridgestan = { version = "2.7.0", features = ["download-bridgestan-src"] }
+pyo3 = { version = "0.21", features = ["extension-module"] }
+numpy = "0.21"  # For numpy array conversion
+pythonize = "0.21"  # For serialization
 
 [package.metadata.maturin]
 name = "seer"
@@ -31,4 +35,4 @@ criterion = "0.5"
 
 # Maturin will use this for building Python wheels
 [build-dependencies]
-pyo3-build-config = "0.20"
+pyo3-build-config = "0.21"

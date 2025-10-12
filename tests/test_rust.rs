@@ -59,7 +59,7 @@ fn model_fit_with_yearly_seasonality() {
     let t_idx: Vec<f64> = (0..n).map(|i| i as f64).collect();
     let y: Vec<f64> = t_idx.iter().map(|&i| 10.0 + 0.2 * i + 5.0 * ((two_pi * i / 365.25).sin())).collect();
 
-    let data = TimeSeriesData::new(ds.clone(), y.clone(), None).unwrap();
+    let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
     let mut m = CoreSeer::new()
         .with_trend(TrendType::Linear)
         .with_changepoints(10);
@@ -84,7 +84,7 @@ fn model_fit_with_yearly_seasonality() {
 fn future_dates_daily_len_and_contiguity() {
     let ds = make_ds("2020-01-01", 10);
     let y: Vec<f64> = (0..10).map(|i| i as f64).collect();
-    let data = TimeSeriesData::new(ds.clone(), y, None).unwrap();
+    let data = TimeSeriesData::new(ds.clone(), y, None, None).unwrap();
     let mut m = CoreSeer::new();
     m.fit(&data).unwrap();
     let fut = m.make_future_dates(5, "D", true).unwrap();
@@ -135,7 +135,7 @@ fn model_logistic_growth() {
     }).collect();
     let cap = vec![cap_val; n];
     
-    let data = TimeSeriesData::new(ds.clone(), y.clone(), Some(cap)).unwrap();
+    let data = TimeSeriesData::new(ds.clone(), y.clone(), Some(cap), None).unwrap();
     let mut m = CoreSeer::new()
         .with_trend(TrendType::Logistic)
         .with_changepoints(5);
@@ -153,7 +153,7 @@ fn uncertainty_intervals_scale_with_sigma() {
     let n = 50;
     let ds = make_ds("2020-01-01", n);
     let y: Vec<f64> = (0..n).map(|i| 10.0 + 0.1 * i as f64).collect();
-    let data = TimeSeriesData::new(ds.clone(), y.clone(), None).unwrap();
+    let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
     let mut m = CoreSeer::new();
     m.fit(&data).unwrap();
     let fcst = m.predict(&ds).unwrap();
@@ -191,7 +191,7 @@ fn add_custom_seasonality() {
         10.0 + monthly_pattern
     }).collect();
     
-    let data = TimeSeriesData::new(ds.clone(), y.clone(), None).unwrap();
+    let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
     let mut m = CoreSeer::new();
     // Disable default seasonalities
     m = m.without_yearly_seasonality()
@@ -226,7 +226,7 @@ fn multiplicative_seasonality_mode() {
         trend * seasonal_factor
     }).collect();
     
-    let data = TimeSeriesData::new(ds.clone(), y.clone(), None).unwrap();
+    let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
     let mut m = CoreSeer::new();
     m = m.without_yearly_seasonality()
         .without_daily_seasonality();
@@ -261,7 +261,7 @@ fn mixed_additive_and_multiplicative_seasonality() {
         trend * multiplicative_factor + additive_seasonal
     }).collect();
     
-    let data = TimeSeriesData::new(ds.clone(), y.clone(), None).unwrap();
+    let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
     let mut m = CoreSeer::new();
     m = m.without_yearly_seasonality()
         .without_weekly_seasonality()
@@ -299,7 +299,7 @@ fn seasonality_with_prior_scale() {
     let ds = make_ds("2020-01-01", n);
     let y: Vec<f64> = (0..n).map(|i| 10.0 + 0.1 * i as f64).collect();
     
-    let data = TimeSeriesData::new(ds.clone(), y.clone(), None).unwrap();
+    let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
     let mut m = CoreSeer::new();
     m = m.without_yearly_seasonality()
         .without_weekly_seasonality();
@@ -333,7 +333,7 @@ fn add_custom_holidays() {
         }
     }).collect();
     
-    let data = TimeSeriesData::new(ds.clone(), y.clone(), None).unwrap();
+    let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
     let mut m = CoreSeer::new();
     m = m.without_yearly_seasonality()
         .without_weekly_seasonality();
@@ -377,7 +377,7 @@ fn holidays_with_windows() {
         }
     }).collect();
     
-    let data = TimeSeriesData::new(ds.clone(), y.clone(), None).unwrap();
+    let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
     let mut m = CoreSeer::new();
     m = m.without_yearly_seasonality()
         .without_weekly_seasonality();
@@ -421,7 +421,7 @@ fn multiple_holidays() {
         }
     }).collect();
     
-    let data = TimeSeriesData::new(ds.clone(), y.clone(), None).unwrap();
+    let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
     let mut m = CoreSeer::new();
     m = m.without_yearly_seasonality()
         .without_weekly_seasonality();
@@ -486,7 +486,7 @@ fn params_includes_complete_state() {
     let n = 50;
     let ds = make_ds("2020-01-01", n);
     let y: Vec<f64> = (0..n).map(|i| 10.0 + 0.1 * i as f64).collect();
-    let data = TimeSeriesData::new(ds.clone(), y.clone(), None).unwrap();
+    let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
     
     let mut m = CoreSeer::new();
     m.fit(&data).unwrap();
@@ -512,7 +512,7 @@ fn serialization_round_trip() {
     let n = 30;
     let ds = make_ds("2020-01-01", n);
     let y: Vec<f64> = (0..n).map(|i| 100.0 + i as f64).collect();
-    let data = TimeSeriesData::new(ds.clone(), y.clone(), None).unwrap();
+    let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
     
     // Create and fit model
     let mut m1 = CoreSeer::new()
@@ -540,7 +540,7 @@ fn serialization_preserves_fitted_parameters() {
     let n = 40;
     let ds = make_ds("2020-01-01", n);
     let y: Vec<f64> = (0..n).map(|i| 50.0 + 0.5 * i as f64).collect();
-    let data = TimeSeriesData::new(ds.clone(), y.clone(), None).unwrap();
+    let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
     
     // Fit original model
     let mut m1 = CoreSeer::new();
@@ -575,7 +575,7 @@ fn serialization_with_custom_components() {
     let n = 30;
     let ds = make_ds("2020-01-01", n);
     let y: Vec<f64> = (0..n).map(|i| 100.0 + i as f64).collect();
-    let data = TimeSeriesData::new(ds.clone(), y.clone(), None).unwrap();
+    let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
     
     // Create model with custom seasonality and holidays
     let mut m1 = CoreSeer::new();

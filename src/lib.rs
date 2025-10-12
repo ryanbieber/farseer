@@ -24,6 +24,41 @@ pub enum SeerError {
     Io(#[from] std::io::Error),
 }
 
+// Helper function to convert pandas dates to strings
+fn convert_ds_to_strings(py: Python, ds_series: &PyAny) -> PyResult<Vec<String>> {
+    if ds_series.hasattr("dt")? {
+        // It's a datetime column
+        // Check if first value has time component
+        let first_val = ds_series.call_method1("iloc", (0,))?;
+        
+        let dt_accessor = ds_series.getattr("dt")?;
+        let format_str = if first_val.hasattr("hour")? {
+            let hour: i32 = first_val.getattr("hour")?.extract()?;
+            let minute: i32 = first_val.getattr("minute")?.extract()?;
+            let second: i32 = first_val.getattr("second")?.extract()?;
+            
+            if hour == 0 && minute == 0 && second == 0 {
+                "%Y-%m-%d"
+            } else {
+                "%Y-%m-%d %H:%M:%S"
+            }
+        } else {
+            "%Y-%m-%d"
+        };
+        
+        dt_accessor
+            .call_method1("strftime", (format_str,))?
+            .call_method0("tolist")?
+            .extract()
+    } else {
+        // Already strings or can be converted
+        ds_series
+            .call_method1("astype", ("str",))?
+            .call_method0("tolist")?
+            .extract()
+    }
+}
+
 // Python wrapper class
 #[pyclass]
 struct Seer {
@@ -43,7 +78,6 @@ impl Seer {
         daily_seasonality=false,
         seasonality_mode="additive",
         interval_width=0.8,
-        use_stan=false,
     ))]
     fn new(
         growth: &str,
@@ -55,7 +89,6 @@ impl Seer {
         daily_seasonality: bool,
         seasonality_mode: &str,
         interval_width: f64,
-        use_stan: bool,
     ) -> PyResult<Self> {
         let trend = match growth {
             "linear" => TrendType::Linear,
@@ -70,20 +103,29 @@ impl Seer {
             .with_trend(trend)
             .with_changepoints(n_changepoints)
             .with_changepoint_range(changepoint_range)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?
             .with_changepoint_prior_scale(changepoint_prior_scale)
             .with_seasonality_mode(seasonality_mode)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?
-            .with_interval_width(interval_width)
-            .with_stan(use_stan);
+            .with_interval_width(interval_width);
         
+        // Set seasonality based on explicit parameters
         if yearly_seasonality {
             seer = seer.with_yearly_seasonality();
+        } else {
+            seer = seer.without_yearly_seasonality();
         }
+        
         if weekly_seasonality {
             seer = seer.with_weekly_seasonality();
+        } else {
+            seer = seer.without_weekly_seasonality();
         }
+        
         if daily_seasonality {
             seer = seer.with_daily_seasonality();
+        } else {
+            seer = seer.without_daily_seasonality();
         }
         
         Ok(Seer { inner: seer })
@@ -91,32 +133,30 @@ impl Seer {
     
     /// Fit the model to historical data
     fn fit(&mut self, py: Python, df: &PyAny) -> PyResult<()> {
+        // Filter out rows with NaN values in 'y' column (Prophet compatibility)
+        let df_copy = df.call_method0("copy")?;
+        let y_notna = df_copy.getattr("y")?.call_method0("notna")?;
+        let df_clean = df_copy.call_method1("__getitem__", (y_notna,))?;
+        
         // Convert ds column to strings, handling datetime objects
-        let ds_series = df.getattr("ds")?;
-        let ds: Vec<String> = if ds_series.hasattr("dt")? {
-            // It's a datetime column, convert to string
-            let dt_accessor = ds_series.getattr("dt")?;
-            dt_accessor
-                .call_method1("strftime", ("%Y-%m-%d %H:%M:%S",))?
-                .call_method0("tolist")?
-                .extract()?
-        } else {
-            // Already strings or will convert fine
-            ds_series
-                .call_method1("astype", ("str",))?
-                .call_method0("tolist")?
-                .extract()?
-        };
+        let ds_series = df_clean.getattr("ds")?;
+        let ds = convert_ds_to_strings(py, ds_series)?;
         
-        let y: Vec<f64> = df.getattr("y")?.call_method0("tolist")?.extract()?;
+        let y: Vec<f64> = df_clean.getattr("y")?.call_method0("tolist")?.extract()?;
         
-        let cap = if df.hasattr("cap")? {
-            Some(df.getattr("cap")?.call_method0("tolist")?.extract()?)
+        let cap = if df_clean.hasattr("cap")? {
+            Some(df_clean.getattr("cap")?.call_method0("tolist")?.extract()?)
         } else {
             None
         };
         
-        let data = TimeSeriesData::new(ds, y, cap)
+        let weights = if df_clean.hasattr("weight")? {
+            Some(df_clean.getattr("weight")?.call_method0("tolist")?.extract()?)
+        } else {
+            None
+        };
+        
+        let data = TimeSeriesData::new(ds, y, cap, weights)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         
         py.allow_threads(|| {
@@ -130,20 +170,7 @@ impl Seer {
     fn predict(&self, py: Python, df: &PyAny) -> PyResult<PyObject> {
         // Convert ds column to strings, handling datetime objects
         let ds_series = df.getattr("ds")?;
-        let ds: Vec<String> = if ds_series.hasattr("dt")? {
-            // It's a datetime column, convert to string
-            let dt_accessor = ds_series.getattr("dt")?;
-            dt_accessor
-                .call_method1("strftime", ("%Y-%m-%d %H:%M:%S",))?
-                .call_method0("tolist")?
-                .extract()?
-        } else {
-            // Already strings or will convert fine
-            ds_series
-                .call_method1("astype", ("str",))?
-                .call_method0("tolist")?
-                .extract()?
-        };
+        let ds = convert_ds_to_strings(py, ds_series)?;
         
         let forecast = py.allow_threads(|| {
             self.inner.predict(&ds)
@@ -184,8 +211,12 @@ impl Seer {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         
         let pd = py.import("pandas")?;
+        
+        // Convert date strings to pandas datetime objects
+        let dates_converted = pd.call_method1("to_datetime", (dates,))?;
+        
         let dict = PyDict::new(py);
-        dict.set_item("ds", dates)?;
+        dict.set_item("ds", dates_converted)?;
         
         let df = pd.call_method1("DataFrame", (dict,))?;
         Ok(df.into())
