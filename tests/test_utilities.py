@@ -78,8 +78,8 @@ class TestDataValidation:
         """Test various date formats"""
         # String dates
         df1 = pd.DataFrame({
-            'ds': ['2020-01-01', '2020-01-02', '2020-01-03'],
-            'y': [10, 11, 12]
+            'ds': pd.date_range('2020-01-01', periods=50, freq='D').strftime('%Y-%m-%d').tolist(),
+            'y': [10 + i * 0.1 for i in range(50)]
         })
         
         m1 = Seer(yearly_seasonality=False, weekly_seasonality=False)
@@ -88,8 +88,8 @@ class TestDataValidation:
         
         # Datetime dates
         df2 = pd.DataFrame({
-            'ds': pd.to_datetime(['2020-01-01', '2020-01-02', '2020-01-03']),
-            'y': [10, 11, 12]
+            'ds': pd.date_range('2020-01-01', periods=50, freq='D'),
+            'y': [10 + i * 0.1 for i in range(50)]
         })
         
         m2 = Seer(yearly_seasonality=False, weekly_seasonality=False)

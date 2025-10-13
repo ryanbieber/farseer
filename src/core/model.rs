@@ -460,11 +460,16 @@ impl Seer {
     }
     
     pub fn predict(&self, ds: &[String]) -> Result<ForecastResult> {
+        self.predict_with_cap(ds, None)
+    }
+
+    pub fn predict_with_cap(&self, ds: &[String], cap: Option<Vec<f64>>) -> Result<ForecastResult> {
         if !self.fitted {
             return Err(crate::SeerError::Prediction(
                 "Model must be fitted before prediction".to_string()
             ));
         }
+        
         // Build t in model units for incoming ds
         let t0 = self.t0.unwrap();
         let mut t: Vec<f64> = Vec::with_capacity(ds.len());
@@ -478,26 +483,40 @@ impl Seer {
 
         // Changepoint matrix and piecewise trend
         let a = changepoint_matrix(&t, &self.t_change);
-        let history = self.history.as_ref().unwrap();
         
         let trend = match self.trend {
             TrendType::Linear => {
                 piecewise_linear(self.k, self.m, &self.delta, &t, &a, &self.t_change)
             }
             TrendType::Logistic => {
-                // Use cap from data if available, otherwise default to large value
-                let cap_vec = if let Some(ref cap_data) = history.cap {
-                    // Extend cap to predict length if needed (use last cap value)
-                    let last_cap = cap_data.last().copied().unwrap_or(1e9);
-                    let mut cap_full = cap_data.clone();
-                    while cap_full.len() < ds.len() {
-                        cap_full.push(last_cap);
+                // Use cap from parameter if provided, otherwise use training cap if available
+                let cap_vec_unscaled = if let Some(cap_provided) = cap {
+                    // Validate cap length matches ds length
+                    if cap_provided.len() != ds.len() {
+                        return Err(crate::SeerError::Prediction(
+                            format!("Cap length ({}) must match ds length ({})", cap_provided.len(), ds.len())
+                        ));
                     }
-                    cap_full.truncate(ds.len());
-                    cap_full
+                    cap_provided
+                } else if let Some(history) = self.history.as_ref() {
+                    if let Some(ref cap_data) = history.cap {
+                        // Extend cap to predict length if needed (use last cap value)
+                        let last_cap = cap_data.last().copied().unwrap_or(1e9);
+                        let mut cap_full = cap_data.clone();
+                        while cap_full.len() < ds.len() {
+                            cap_full.push(last_cap);
+                        }
+                        cap_full.truncate(ds.len());
+                        cap_full
+                    } else {
+                        vec![1e9; ds.len()]
+                    }
                 } else {
+                    // No history available (e.g., deserialized model) - use default large cap
                     vec![1e9; ds.len()]
                 };
+                // Scale cap by y_scale (model parameters are in scaled space)
+                let cap_vec: Vec<f64> = cap_vec_unscaled.iter().map(|&v| v / self.y_scale).collect();
                 piecewise_logistic(self.k, self.m, &self.delta, &t, &cap_vec, &a, &self.t_change)
             }
             TrendType::Flat => {
@@ -797,6 +816,11 @@ impl Seer {
         Ok(())
     }
     
+    /// Get reference to training history (for predict without df)
+    pub fn get_history(&self) -> Option<&TimeSeriesData> {
+        self.history.as_ref()
+    }
+    
     pub fn get_params(&self) -> serde_json::Value {
         let growth_str = match self.trend {
             TrendType::Linear => "linear",
@@ -846,7 +870,9 @@ impl Seer {
             "interval_width": self.interval_width,
             
             // Fitted parameters (only if fitted)
+            "t0": self.t0.as_ref().map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string()),
             "t_scale": self.t_scale,
+            "y_scale": self.y_scale,
             "t_change": self.t_change,
             "k": self.k,
             "m": self.m,
@@ -1010,7 +1036,7 @@ impl Seer {
             country_holidays,
             fitted: params["fitted"].as_bool().unwrap_or(false),
             history: None, // History not serialized
-            t0: None, // Reconstructed from history if needed
+            t0: params["t0"].as_str().and_then(|s| parse_ds(s)),
             t_scale: params["t_scale"].as_f64().unwrap_or(1.0),
             t_change,
             y_scale: params["y_scale"].as_f64().unwrap_or(1.0),

@@ -22,9 +22,9 @@ argmin = "0.10"
 argmin-math = { version = "0.4", features = ["vec"] }
 
 # Python bindings
-pyo3 = { version = "0.21", features = ["extension-module"] }
-numpy = "0.21"  # For numpy array conversion
-pythonize = "0.21"  # For serialization
+pyo3 = { version = "0.22", features = ["extension-module"] }
+numpy = "0.22"  # For numpy array conversion
+pythonize = "0.22"  # For serialization
 
 [package.metadata.maturin]
 name = "seer"
@@ -33,6 +33,11 @@ name = "seer"
 approx = "0.5"
 criterion = "0.5"
 
+# Integration tests
+[[test]]
+name = "integration_tests"
+path = "rust_tests/integration_tests.rs"
+
 # Maturin will use this for building Python wheels
 [build-dependencies]
-pyo3-build-config = "0.21"
+pyo3-build-config = "0.22"

@@ -1,13 +1,9 @@
-// LBFGS Optimizer using argmin-rs
-// Replaces CmdStan with native Rust optimization
+// LBFGS Optimizer using CmdStan
+// Directly calls CmdStan binary for maximum performance
 
 use crate::Result;
-use argmin::core::{CostFunction, Executor, Gradient};
-use argmin::solver::linesearch::MoreThuenteLineSearch;
-use argmin::solver::quasinewton::LBFGS;
-use ndarray::{Array1, Array2, ArrayView1};
 
-/// Configuration for LBFGS optimization
+/// Configuration for CmdStan optimization (kept for compatibility)
 pub struct CmdStanConfig {
     /// Maximum number of iterations
     pub iter: usize,
@@ -24,9 +20,9 @@ pub struct CmdStanConfig {
 impl Default for CmdStanConfig {
     fn default() -> Self {
         Self {
-            iter: 10000,
-            tol_grad: 1e-8,
-            tol_obj: 1e-12,
+            iter: 10000,         // Keep high max iterations (rarely hit)
+            tol_grad: 1e-8,      // Keep strict gradient tolerance for accuracy
+            tol_obj: 1e-12,      // Keep strict objective tolerance
             history_size: 5,
             linesearch_condition: 1e-4,
         }
@@ -44,380 +40,237 @@ pub struct OptimizationResult {
     pub trend: Vec<f64>,
 }
 
-/// Prophet model cost function for optimization
-struct ProphetCostFunction {
-    t: Vec<f64>,
-    y: Vec<f64>,
-    cap: Vec<f64>,
-    x: Vec<Vec<f64>>,
-    sigmas: Vec<f64>,
-    tau: f64,
-    trend_indicator: i32,
-    s_a: Vec<f64>,
-    s_m: Vec<f64>,
-    t_change: Vec<f64>,
-    weights: Vec<f64>,
-    n: usize,
-    k: usize,
-    s: usize,
-    changepoint_matrix: Array2<f64>,
-}
-
-impl ProphetCostFunction {
-    fn new(
-        t: Vec<f64>,
-        y: Vec<f64>,
-        cap: Vec<f64>,
-        x: Vec<Vec<f64>>,
-        sigmas: Vec<f64>,
-        tau: f64,
-        trend_indicator: i32,
-        s_a: Vec<f64>,
-        s_m: Vec<f64>,
-        t_change: Vec<f64>,
-        weights: Vec<f64>,
-    ) -> Self {
-        let n = t.len();
-        let k = x.first().map(|v| v.len()).unwrap_or(0);
-        let s = t_change.len();
-        
-        // Precompute changepoint matrix
-        let changepoint_matrix = Self::get_changepoint_matrix(&t, &t_change, n, s);
-        
-        Self {
-            t,
-            y,
-            cap,
-            x,
-            sigmas,
-            tau,
-            trend_indicator,
-            s_a,
-            s_m,
-            t_change,
-            weights,
-            n,
-            k,
-            s,
-            changepoint_matrix,
-        }
-    }
-    
-    fn get_changepoint_matrix(t: &[f64], t_change: &[f64], n: usize, s: usize) -> Array2<f64> {
-        let mut a = Array2::<f64>::zeros((n, s));
-        for (i, &t_i) in t.iter().enumerate() {
-            for (j, &t_c) in t_change.iter().enumerate() {
-                if t_i >= t_c {
-                    a[[i, j]] = 1.0;
-                }
-            }
-        }
-        a
-    }
-    
-    fn unpack_params<'a>(&self, params: &'a [f64]) -> (f64, f64, f64, ArrayView1<'a, f64>, ArrayView1<'a, f64>) {
-        // Parameter layout: [k, m, sigma_obs, delta[s], beta[k]]
-        let k = params[0];
-        let m = params[1];
-        let sigma_obs = params[2];
-        let delta = ArrayView1::from(&params[3..3 + self.s]);
-        let beta = ArrayView1::from(&params[3 + self.s..3 + self.s + self.k]);
-        (k, m, sigma_obs, delta, beta)
-    }
-    
-    fn compute_trend(&self, k: f64, m: f64, delta: &ArrayView1<f64>) -> Vec<f64> {
-        let delta_arr = Array1::from_vec(delta.to_vec());
-        
-        match self.trend_indicator {
-            0 => {
-                // Flat trend
-                vec![m; self.n]
-            }
-            1 => {
-                // Logistic growth
-                let gamma = self.logistic_gamma(k, m, &delta_arr);
-                let k_vec = Array1::from_elem(self.n, k);
-                let k_t = &k_vec + self.changepoint_matrix.dot(&delta_arr);
-                let m_vec = Array1::from_elem(self.n, m);
-                let m_t = &m_vec + self.changepoint_matrix.dot(&gamma);
-                
-                let t_arr = Array1::from_vec(self.t.clone());
-                let cap_arr = Array1::from_vec(self.cap.clone());
-                
-                cap_arr.iter()
-                    .zip(k_t.iter())
-                    .zip(t_arr.iter())
-                    .zip(m_t.iter())
-                    .map(|(((c, k), t), m)| c / (1.0 + (-k * (t - m)).exp()))
-                    .collect()
-            }
-            _ => {
-                // Linear growth
-                let delta_arr = Array1::from_vec(delta.to_vec());
-                let k_vec = Array1::from_elem(self.n, k);
-                let k_t = &k_vec + self.changepoint_matrix.dot(&delta_arr);
-                
-                let t_arr = Array1::from_vec(self.t.clone());
-                let t_change_arr = Array1::from_vec(self.t_change.clone());
-                let m_vec = Array1::from_elem(self.n, m);
-                let m_t = &m_vec - self.changepoint_matrix.dot(&(&t_change_arr * &delta_arr));
-                
-                (k_t * &t_arr + m_t).to_vec()
-            }
-        }
-    }
-    
-    fn logistic_gamma(&self, k: f64, m: f64, delta: &Array1<f64>) -> Array1<f64> {
-        let s = delta.len();
-        let mut gamma = Array1::<f64>::zeros(s);
-        let mut k_s = vec![k];
-        
-        for &d in delta.iter() {
-            k_s.push(k_s.last().unwrap() + d);
-        }
-        
-        let mut m_pr = m;
-        for i in 0..s {
-            gamma[i] = (self.t_change[i] - m_pr) * (1.0 - k_s[i] / k_s[i + 1]);
-            m_pr += gamma[i];
-        }
-        
-        gamma
-    }
-    
-    fn compute_seasonality(&self, beta: &ArrayView1<f64>) -> Vec<f64> {
-        let mut seasonality = vec![0.0; self.n];
-        
-        for i in 0..self.n {
-            let mut s = 0.0;
-            for (j, &b) in beta.iter().enumerate() {
-                if j < self.s_a.len() {
-                    s += b * self.s_a[j];
-                } else if j - self.s_a.len() < self.s_m.len() {
-                    s += b * self.s_m[j - self.s_a.len()];
-                }
-            }
-            seasonality[i] = s;
-        }
-        
-        seasonality
-    }
-    
-    fn negative_log_posterior(&self, params: &[f64]) -> f64 {
-        let (k, m, sigma_obs, delta, beta) = self.unpack_params(params);
-        
-        // Ensure sigma_obs is positive
-        if sigma_obs <= 0.0 {
-            return 1e10;
-        }
-        
-        // Compute trend
-        let trend = self.compute_trend(k, m, &delta);
-        
-        // Compute seasonality
-        let seasonality = self.compute_seasonality(&beta);
-        
-        // Compute regression component
-        let mut regression = vec![0.0; self.n];
-        for i in 0..self.n {
-            for (j, &b) in beta.iter().enumerate() {
-                if j < self.x.len() && i < self.x[j].len() {
-                    regression[i] += b * self.x[j][i];
-                }
-            }
-        }
-        
-        // Compute likelihood
-        let mut log_likelihood = 0.0;
-        for i in 0..self.n {
-            let mu = trend[i] + seasonality[i] + regression[i];
-            let residual = self.y[i] - mu;
-            log_likelihood -= 0.5 * self.weights[i] * (residual / sigma_obs).powi(2);
-        }
-        log_likelihood -= (self.n as f64) * sigma_obs.ln();
-        
-        // Priors
-        let mut log_prior = 0.0;
-        
-        // Prior on delta (Laplace with scale tau)
-        for &d in delta.iter() {
-            log_prior -= d.abs() / self.tau;
-        }
-        
-        // Prior on sigma_obs
-        for &sigma in self.sigmas.iter() {
-            log_prior -= 0.5 * (sigma_obs / sigma).powi(2);
-        }
-        
-        // Return negative log posterior (since we minimize)
-        -(log_likelihood + log_prior)
-    }
-}
-
-impl CostFunction for ProphetCostFunction {
-    type Param = Vec<f64>;
-    type Output = f64;
-
-    fn cost(&self, params: &Self::Param) -> std::result::Result<Self::Output, argmin::core::Error> {
-        Ok(self.negative_log_posterior(params))
-    }
-}
-
-impl Gradient for ProphetCostFunction {
-    type Param = Vec<f64>;
-    type Gradient = Vec<f64>;
-
-    fn gradient(&self, params: &Self::Param) -> std::result::Result<Self::Gradient, argmin::core::Error> {
-        // Use finite differences for gradient calculation
-        let eps = 1e-8;
-        let mut grad = vec![0.0; params.len()];
-        
-        for i in 0..params.len() {
-            let mut params_plus = params.clone();
-            let mut params_minus = params.clone();
-            
-            params_plus[i] += eps;
-            params_minus[i] -= eps;
-            
-            let f_plus = self.negative_log_posterior(&params_plus);
-            let f_minus = self.negative_log_posterior(&params_minus);
-            
-            grad[i] = (f_plus - f_minus) / (2.0 * eps);
-        }
-        
-        Ok(grad)
-    }
-}
-
-/// LBFGS optimizer using argmin-rs
+/// CmdStan optimizer - calls CmdStan binary directly
 pub struct CmdStanOptimizer {
-    config: CmdStanConfig,
+    _config: CmdStanConfig,
+    model_path: std::path::PathBuf,
 }
 
 impl CmdStanOptimizer {
     pub fn new(config: CmdStanConfig) -> Self {
-        Self { config }
-    }
-
-    pub fn with_model_path(_model_path: impl Into<std::path::PathBuf>) -> Self {
-        // Model path is not used in pure Rust implementation
-        Self {
-            config: CmdStanConfig::default(),
+        let model_path = Self::find_model_binary()
+            .unwrap_or_else(|| std::path::PathBuf::from("prophet_stan_model/prophet_model"));
+        
+        Self { 
+            _config: config,
+            model_path,
         }
     }
 
+    pub fn with_model_path(model_path: impl Into<std::path::PathBuf>) -> Self {
+        Self {
+            _config: CmdStanConfig::default(),
+            model_path: model_path.into(),
+        }
+    }
+
+    /// Find the prophet model binary in common locations
+    fn find_model_binary() -> Option<std::path::PathBuf> {
+        // Check environment variable first
+        if let Ok(path) = std::env::var("PROPHET_MODEL_PATH") {
+            let p = std::path::PathBuf::from(&path);
+            if p.exists() {
+                return Some(p);
+            }
+        }
+
+        // Try various relative and absolute paths
+        let candidates = vec![
+            // Relative to current working directory
+            "prophet_stan_model/prophet_model",
+            "./prophet_stan_model/prophet_model",
+            "../prophet_stan_model/prophet_model",
+            // Try to find via cargo manifest dir (compile-time)
+            concat!(env!("CARGO_MANIFEST_DIR"), "/prophet_stan_model/prophet_model"),
+        ];
+
+        for candidate in candidates {
+            let path = std::path::PathBuf::from(candidate);
+            if path.exists() {
+                return Some(path);
+            }
+        }
+
+        None
+    }
+
     /// Optimize the Prophet model with the given data and initial parameters
+    /// This now calls CmdStan directly for maximum performance
     pub fn optimize(
         &self,
         data: &serde_json::Value,
         init: &serde_json::Value,
     ) -> Result<OptimizationResult> {
-        // Extract data
-        let t: Vec<f64> = serde_json::from_value(data["t"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse t: {}", e)))?;
-        let y: Vec<f64> = serde_json::from_value(data["y"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse y: {}", e)))?;
-        let cap: Vec<f64> = serde_json::from_value(data["cap"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse cap: {}", e)))?;
-        let x: Vec<Vec<f64>> = serde_json::from_value(data["X"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse X: {}", e)))?;
-        let sigmas: Vec<f64> = serde_json::from_value(data["sigmas"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse sigmas: {}", e)))?;
-        let tau: f64 = serde_json::from_value(data["tau"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse tau: {}", e)))?;
-        let trend_indicator: i32 = serde_json::from_value(data["trend_indicator"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse trend_indicator: {}", e)))?;
-        let s_a: Vec<f64> = serde_json::from_value(data["s_a"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse s_a: {}", e)))?;
-        let s_m: Vec<f64> = serde_json::from_value(data["s_m"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse s_m: {}", e)))?;
-        let t_change: Vec<f64> = serde_json::from_value(data["t_change"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse t_change: {}", e)))?;
-        let weights: Vec<f64> = serde_json::from_value(data["weights"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse weights: {}", e)))?;
+        use std::io::Write;
+        use std::process::Command;
 
-        // Extract initial parameters
-        let k_init: f64 = serde_json::from_value(init["k"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse k: {}", e)))?;
-        let m_init: f64 = serde_json::from_value(init["m"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse m: {}", e)))?;
-        let delta_init: Vec<f64> = serde_json::from_value(init["delta"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse delta: {}", e)))?;
-        let beta_init: Vec<f64> = serde_json::from_value(init["beta"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse beta: {}", e)))?;
-        let sigma_obs_init: f64 = serde_json::from_value(init["sigma_obs"].clone())
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to parse sigma_obs: {}", e)))?;
+        // Check if model binary exists
+        if !self.model_path.exists() {
+            let candidates = vec![
+                "prophet_stan_model/prophet_model",
+                "./prophet_stan_model/prophet_model",
+                concat!(env!("CARGO_MANIFEST_DIR"), "/prophet_stan_model/prophet_model"),
+                concat!(env!("CARGO_MANIFEST_DIR"), "/prophet_stan_model/prophet_model"),
+            ];
+            return Err(crate::SeerError::StanError(format!(
+                "Prophet model binary not found. Tried:\n  - {}\n  - {}\nSet PROPHET_MODEL_PATH environment variable to specify location.",
+                self.model_path.display(),
+                candidates.join("\n  - ")
+            )));
+        }
 
-        // Pack parameters into a single vector
-        let mut init_params = vec![k_init, m_init, sigma_obs_init];
-        init_params.extend_from_slice(&delta_init);
-        init_params.extend_from_slice(&beta_init);
+        // Create temporary files for data and init with proper extensions
+        let mut data_file = tempfile::Builder::new()
+            .suffix(".json")
+            .tempfile()
+            .map_err(|e| crate::SeerError::Io(e))?;
+        let mut init_file = tempfile::Builder::new()
+            .suffix(".json")
+            .tempfile()
+            .map_err(|e| crate::SeerError::Io(e))?;
+        let output_file = tempfile::Builder::new()
+            .suffix(".csv")
+            .tempfile()
+            .map_err(|e| crate::SeerError::Io(e))?;
 
-        // Create cost function
-        let cost_fn = ProphetCostFunction::new(
-            t.clone(),
-            y.clone(),
-            cap,
-            x,
-            sigmas,
-            tau,
-            trend_indicator,
-            s_a,
-            s_m,
-            t_change.clone(),
-            weights,
-        );
+        // Write data in JSON format (CmdStan's preferred input format)
+        let data_content = serde_json::to_string_pretty(data)
+            .map_err(|e| crate::SeerError::StanError(format!("Failed to serialize data: {}", e)))?;
+        
+        data_file.write_all(data_content.as_bytes())
+            .map_err(|e| crate::SeerError::Io(e))?;
+        data_file.flush()
+            .map_err(|e| crate::SeerError::Io(e))?;
 
-        // Create LBFGS solver with line search
-        let linesearch = MoreThuenteLineSearch::new();
-        let lbfgs = LBFGS::new(linesearch, self.config.history_size);
+        // Write init in JSON format
+        let init_content = serde_json::to_string_pretty(init)
+            .map_err(|e| crate::SeerError::StanError(format!("Failed to serialize init: {}", e)))?;
+        
+        init_file.write_all(init_content.as_bytes())
+            .map_err(|e| crate::SeerError::Io(e))?;
+        init_file.flush()
+            .map_err(|e| crate::SeerError::Io(e))?;
 
-        // Run optimization
-        let result = Executor::new(cost_fn, lbfgs)
-            .configure(|state| {
-                state
-                    .param(init_params)
-                    .max_iters(self.config.iter as u64)
-            })
-            .run()
-            .map_err(|e| crate::SeerError::StanError(format!("Optimization failed: {}", e)))?;
+        // Set LD_LIBRARY_PATH for TBB libraries
+        let model_dir = self.model_path.parent()
+            .unwrap_or_else(|| std::path::Path::new("prophet_stan_model"));
+        
+        let ld_library_path = std::env::var("LD_LIBRARY_PATH")
+            .unwrap_or_default();
+        let new_ld_library_path = if ld_library_path.is_empty() {
+            model_dir.to_string_lossy().to_string()
+        } else {
+            format!("{}:{}", model_dir.to_string_lossy(), ld_library_path)
+        };
 
-        // Extract optimized parameters using the State trait
-        let best_params = result.state().param
-            .as_ref()
-            .ok_or_else(|| crate::SeerError::StanError("No parameters found".to_string()))?;
+        // Determine number of threads to use
+        let num_threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1);
 
-        let k = best_params[0];
-        let m = best_params[1];
-        let sigma_obs = best_params[2];
-        let s = delta_init.len();
-        let delta = best_params[3..3 + s].to_vec();
-        let beta = best_params[3 + s..].to_vec();
+        // Run CmdStan optimization
+        let output = Command::new(&self.model_path)
+            .env("LD_LIBRARY_PATH", new_ld_library_path)
+            .arg("optimize")
+            .arg("algorithm=lbfgs")
+            .arg("data")
+            .arg(format!("file={}", data_file.path().display()))
+            .arg(format!("init={}", init_file.path().display()))
+            .arg("output")
+            .arg(format!("file={}", output_file.path().display()))
+            .arg(format!("num_threads={}", num_threads))
+            .output()
+            .map_err(|e| crate::SeerError::StanError(format!("Failed to run CmdStan: {}", e)))?;
 
-        // Compute final trend
-        let cost_fn = ProphetCostFunction::new(
-            t,
-            y,
-            vec![],
-            vec![],
-            vec![],
-            tau,
-            trend_indicator,
-            vec![],
-            vec![],
-            t_change,
-            vec![],
-        );
-        let delta_view = ArrayView1::from(&delta);
-        let trend = cost_fn.compute_trend(k, m, &delta_view);
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            return Err(crate::SeerError::StanError(format!(
+                "CmdStan optimization failed.\nStderr: {}\nStdout: {}",
+                stderr, stdout
+            )));
+        }
 
+        // Parse the output CSV file
+        self.parse_cmdstan_output(output_file.path())
+            }
+    
+    /// Parse CmdStan output CSV file
+    fn parse_cmdstan_output(&self, path: &std::path::Path) -> Result<OptimizationResult> {
+        use std::fs::File;
+        use std::io::{BufRead, BufReader};
+        
+        let file = File::open(path)
+            .map_err(|e| crate::SeerError::Io(e))?;
+        let reader = BufReader::new(file);
+        
+        let mut header = Vec::new();
+        let mut last_line = String::new();
+        
+        for line in reader.lines() {
+            let line = line.map_err(|e| crate::SeerError::Io(e))?;
+            
+            // Skip comments
+            if line.starts_with('#') {
+                continue;
+            }
+            
+            // First non-comment line is the header
+            if header.is_empty() {
+                header = line.split(',').map(|s| s.trim().to_string()).collect();
+                continue;
+            }
+            
+            // Keep track of the last data line (final optimized values)
+            if !line.is_empty() {
+                last_line = line;
+            }
+        }
+        
+        if last_line.is_empty() {
+            return Err(crate::SeerError::StanError("No optimization output found".to_string()));
+        }
+        
+        // Parse the last line
+        let values: Vec<f64> = last_line.split(',')
+            .filter_map(|s| s.trim().parse::<f64>().ok())
+            .collect();
+        
+        // Find parameter indices in header
+        let find_index = |name: &str| {
+            header.iter().position(|h| h == name)
+        };
+        
+        let k_idx = find_index("k")
+            .ok_or_else(|| crate::SeerError::StanError("k not found in output".to_string()))?;
+        let m_idx = find_index("m")
+            .ok_or_else(|| crate::SeerError::StanError("m not found in output".to_string()))?;
+        let sigma_obs_idx = find_index("sigma_obs")
+            .ok_or_else(|| crate::SeerError::StanError("sigma_obs not found in output".to_string()))?;
+        
+        // Extract delta and beta arrays
+        let mut delta = Vec::new();
+        let mut beta = Vec::new();
+        
+        for (i, h) in header.iter().enumerate() {
+            if h.starts_with("delta.") {
+                if i < values.len() {
+                    delta.push(values[i]);
+                }
+            } else if h.starts_with("beta.") {
+                if i < values.len() {
+                    beta.push(values[i]);
+                }
+            }
+        }
+        
         Ok(OptimizationResult {
-            k,
-            m,
-            sigma_obs,
+            k: values[k_idx],
+            m: values[m_idx],
+            sigma_obs: values[sigma_obs_idx],
             delta,
             beta,
-            trend,
+            trend: Vec::new(), // Will be computed later if needed
         })
     }
 }

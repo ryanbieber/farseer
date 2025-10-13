@@ -179,8 +179,15 @@ class TestBacktesting:
         # Predict on test period
         forecast = m.predict(test[['ds']])
         
+        # Convert to numpy for comparison (forecast is polars, test is pandas)
+        if hasattr(forecast, 'to_pandas'):
+            forecast_yhat = forecast['yhat'].to_numpy()
+        else:
+            forecast_yhat = forecast['yhat'].values
+        test_y = test['y'].values
+        
         # Calculate error
-        error = np.mean(np.abs(forecast['yhat'].values - test['y'].values))
+        error = np.mean(np.abs(forecast_yhat - test_y))
         
         # Error should be reasonable
         assert error < 50
@@ -205,7 +212,13 @@ class TestBacktesting:
             future = pd.DataFrame({'ds': [test_point['ds']]})
             forecast = m.predict(future)
             
-            error = abs(forecast['yhat'].values[0] - test_point['y'])
+            # Convert to numpy for comparison (forecast is polars)
+            if hasattr(forecast, 'to_pandas'):
+                forecast_yhat = forecast['yhat'].to_numpy()[0]
+            else:
+                forecast_yhat = forecast['yhat'].values[0]
+            
+            error = abs(forecast_yhat - test_point['y'])
             errors.append(error)
         
         # Should have some errors

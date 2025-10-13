@@ -6,30 +6,37 @@ build-backend = "maturin"
 name = "seer"
 version = "0.1.0"
 description = "Fast Bayesian time series forecasting in Rust, with Python bindings"
-authors = [{name = "Your Name", email = "your.email@example.com"}]
+authors = [{name = "Ryan Bieber", email = "ryan.bieber@protonmail.com"}]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.8,<3.14"
+license = {text = "MIT"}
+keywords = ["forecasting", "time-series", "prophet", "bayesian", "rust"]
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
     "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
-    "pandas>=1.0",
+    "polars>=0.20.0",
+    "pyarrow>=10.0",  # Required for polars-pandas conversion
     "numpy>=1.20",
-    "matplotlib>=3.0",  # For plotting
+    "matplotlib>=3.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
-    "pytest-benchmark",
-    "black",
-    "mypy",
 ]
-plotly = ["plotly>=5.0"]
+pandas = ["pandas>=1.0"]
 
 [tool.maturin]
+# Python source files are in the seer/ directory
+python-source = "."
+# The Rust module will be named _seer and placed inside the seer package
+module-name = "seer._seer"

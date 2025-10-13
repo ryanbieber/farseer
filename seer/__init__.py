@@ -4,48 +4,96 @@ Python wrapper around the Rust-based Seer library for time series forecasting.
 
 Example:
     >>> from seer import Seer
+    >>> import polars as pl
+    >>> df = pl.DataFrame({
+    ...     'ds': pl.date_range(datetime(2020, 1, 1), datetime(2020, 4, 9), interval='1d'),
+    ...     'y': range(100)
+    ... })
+    >>> model = Seer()
+    >>> model.fit(df)
+    >>> forecast = model.predict(model.make_future_dataframe(periods=30))
+    
+    # Pandas DataFrames are also supported (automatically converted to polars):
     >>> import pandas as pd
     >>> df = pd.DataFrame({
     ...     'ds': pd.date_range('2020-01-01', periods=100),
     ...     'y': range(100)
     ... })
     >>> model = Seer()
-    >>> model.fit(df)
-    >>> forecast = model.predict(model.make_future_dataframe(periods=30))
+    >>> model.fit(df)  # Automatically converted to polars
 """
 
 # This file provides Python-level enhancements to the Rust Seer class
 # The base Seer class and __version__ are defined in the Rust library (src/lib.rs)
 # and compiled via PyO3/maturin
 
-# When tests import "from seer import Seer", they get the Rust-compiled module
-# This __init__.py file is for the python/seer package which contains test scripts
-# The actual package users install gets the Rust module directly
+from typing import Union, Optional, List
 
-# For the test scripts in this directory, we'll create a pass-through
-import sys
-import os
-
-# Add parent directory to path so we can import the installed seer module
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
-# Now import from the actual installed module
+# Try importing polars, it's required
 try:
-    import seer as _installed_seer
-    Seer = _installed_seer.Seer
-    __version__ = getattr(_installed_seer, '__version__', '0.1.0')
-except ImportError as e:
+    import polars as pl
+except ImportError:
     raise ImportError(
-        f"Could not import seer module. Please build and install with 'maturin develop'. Error: {e}"
-    ) from e
+        "polars is required. Install with: pip install polars"
+    )
 
-__all__ = ['Seer', '__version__']
+# Try importing pandas, it's optional for backward compatibility
+try:
+    import pandas as pd
+    HAS_PANDAS = True
+except ImportError:
+    HAS_PANDAS = False
+    pd = None
+
+# Import the Rust module
+# Maturin builds this as seer._seer or seer.seer depending on configuration
+# We'll try both approaches for compatibility
+try:
+    # Try importing the Rust extension module directly
+    from . import seer as _rust_seer
+    _Seer = _rust_seer.Seer
+    __version__ = getattr(_rust_seer, '__version__', '0.1.0')
+except ImportError:
+    try:
+        # Try the alternative naming convention
+        from . import _seer as _rust_seer
+        _Seer = _rust_seer.Seer
+        __version__ = getattr(_rust_seer, '__version__', '0.1.0')
+    except ImportError as e:
+        raise ImportError(
+            f"Could not import seer Rust module. Please build and install with 'maturin develop'. Error: {e}"
+        ) from e
+
+
+def _pandas_to_polars(df):
+    """Convert pandas DataFrame to polars DataFrame"""
+    if not HAS_PANDAS:
+        raise TypeError("pandas is not installed, cannot convert pandas DataFrame")
+    return pl.from_pandas(df)
+
+
+def _polars_to_pandas(df: pl.DataFrame):
+    """Convert polars DataFrame to pandas DataFrame"""
+    if not HAS_PANDAS:
+        raise ImportError("pandas is not installed, cannot convert to pandas DataFrame")
+    return df.to_pandas()
+
+
+def _ensure_polars(df) -> pl.DataFrame:
+    """Ensure input is a polars DataFrame, converting from pandas if necessary"""
+    if isinstance(df, pl.DataFrame):
+        return df
+    elif HAS_PANDAS and isinstance(df, pd.DataFrame):
+        return _pandas_to_polars(df)
+    else:
+        raise TypeError(f"Expected polars.DataFrame or pandas.DataFrame, got {type(df)}")
+
 
 class Seer(_Seer):
     """
     Seer forecaster with scikit-learn-like interface.
+    
+    Supports both polars and pandas DataFrames (pandas will be converted to polars internally).
     
     Parameters
     ----------
@@ -71,11 +119,11 @@ class Seer(_Seer):
     Examples
     --------
     >>> from seer import Seer
-    >>> import pandas as pd
+    >>> import polars as pl
     >>> 
-    >>> # Create sample data
-    >>> df = pd.DataFrame({
-    ...     'ds': pd.date_range('2020-01-01', periods=100),
+    >>> # Create sample data with polars
+    >>> df = pl.DataFrame({
+    ...     'ds': pl.date_range(datetime(2020, 1, 1), datetime(2020, 4, 9), interval='1d'),
     ...     'y': range(100)
     ... })
     >>> 
@@ -88,48 +136,61 @@ class Seer(_Seer):
     >>> forecast = model.predict(future)
     """
     
-    def fit(self, df: pd.DataFrame, **kwargs) -> 'Seer':
+    def fit(self, df: Union[pl.DataFrame, 'pd.DataFrame'], **kwargs) -> 'Seer':
         """
         Fit the Seer model.
         
         Parameters
         ----------
-        df : pd.DataFrame
+        df : polars.DataFrame or pandas.DataFrame
             DataFrame with columns 'ds' (date) and 'y' (value).
             Optional 'cap' column for logistic growth.
+            If pandas DataFrame is provided, it will be converted to polars.
             
         Returns
         -------
         self : Seer
             Fitted model
         """
+        # Convert to polars if needed
+        df_polars = _ensure_polars(df)
+        
         # Validate input
-        if 'ds' not in df.columns or 'y' not in df.columns:
+        if 'ds' not in df_polars.columns or 'y' not in df_polars.columns:
             raise ValueError("DataFrame must have 'ds' and 'y' columns")
         
         # Make a copy to avoid modifying the original
-        df_copy = df.copy()
+        df_copy = df_polars.clone()
         
-        # Ensure ds is datetime
-        if not pd.api.types.is_datetime64_any_dtype(df_copy['ds']):
-            df_copy['ds'] = pd.to_datetime(df_copy['ds'])
+        # Ensure ds is datetime - handle both Date and Datetime types
+        ds_dtype = df_copy['ds'].dtype
+        if ds_dtype == pl.Date:
+            # Convert Date to Datetime
+            df_copy = df_copy.with_columns(pl.col('ds').cast(pl.Datetime))
+        elif ds_dtype != pl.Datetime:
+            # Try to parse as string
+            df_copy = df_copy.with_columns(pl.col('ds').str.strptime(pl.Datetime, format='%Y-%m-%d'))
+        
+        # Convert to pandas for Rust interop (temporary until Rust supports polars directly)
+        df_pandas = df_copy.to_pandas()
         
         # Call Rust fit method (handles datetime conversion internally)
-        super().fit(df_copy)
+        super().fit(df_pandas)
         return self
     
-    def predict(self, df: pd.DataFrame) -> pd.DataFrame:
+    def predict(self, df: Union[pl.DataFrame, 'pd.DataFrame', None] = None) -> pl.DataFrame:
         """
         Predict using the Seer model.
         
         Parameters
         ----------
-        df : pd.DataFrame
-            DataFrame with 'ds' column
+        df : polars.DataFrame, pandas.DataFrame, or None
+            DataFrame with 'ds' column. If None, uses training data.
+            If pandas DataFrame is provided, it will be converted to polars.
             
         Returns
         -------
-        forecast : pd.DataFrame
+        forecast : polars.DataFrame
             DataFrame with predictions including:
             - ds: dates
             - yhat: predicted values
@@ -139,20 +200,76 @@ class Seer(_Seer):
             - yearly: yearly seasonality (if enabled)
             - weekly: weekly seasonality (if enabled)
         """
-        # Make a copy to avoid modifying the original
-        df_copy = df.copy()
+        if df is None:
+            # Call Rust predict with None
+            forecast_pandas = super().predict(None)
+        else:
+            # Convert to polars if needed
+            df_polars = _ensure_polars(df)
+            
+            # Make a copy to avoid modifying the original
+            df_copy = df_polars.clone()
+            
+            # Ensure ds is datetime - handle both Date and Datetime types
+            ds_dtype = df_copy['ds'].dtype
+            if ds_dtype == pl.Date:
+                # Convert Date to Datetime
+                df_copy = df_copy.with_columns(pl.col('ds').cast(pl.Datetime))
+            elif ds_dtype != pl.Datetime:
+                # Try to parse as string
+                df_copy = df_copy.with_columns(pl.col('ds').str.strptime(pl.Datetime, format='%Y-%m-%d'))
+            
+            # Convert to pandas for Rust interop (temporary)
+            df_pandas = df_copy.to_pandas()
+            
+            # Call Rust predict method (handles datetime conversion internally)
+            forecast_pandas = super().predict(df_pandas)
+        
+        # Convert result back to polars
+        forecast_polars = pl.from_pandas(forecast_pandas)
         
         # Ensure ds is datetime
-        if not pd.api.types.is_datetime64_any_dtype(df_copy['ds']):
-            df_copy['ds'] = pd.to_datetime(df_copy['ds'])
+        forecast_polars = forecast_polars.with_columns(
+            pl.col('ds').str.strptime(pl.Datetime, format='%Y-%m-%d %H:%M:%S', strict=False)
+        )
         
-        # Call Rust predict method (handles datetime conversion internally)
-        forecast = super().predict(df_copy)
+        return forecast_polars
+    
+    def make_future_dataframe(
+        self,
+        periods: int,
+        freq: str = 'D',
+        include_history: bool = True
+    ) -> pl.DataFrame:
+        """
+        Create a dataframe for future predictions.
         
-        # Convert ds back to datetime
-        forecast['ds'] = pd.to_datetime(forecast['ds'])
+        Parameters
+        ----------
+        periods : int
+            Number of periods to forecast
+        freq : str, default 'D'
+            Frequency string: 'D' for daily, 'H' for hourly, etc.
+        include_history : bool, default True
+            Whether to include historical dates
+            
+        Returns
+        -------
+        future : polars.DataFrame
+            DataFrame with 'ds' column for future dates
+        """
+        # Call Rust method
+        future_pandas = super().make_future_dataframe(periods, freq, include_history)
         
-        return forecast
+        # Convert to polars
+        future_polars = pl.from_pandas(future_pandas)
+        
+        # Ensure ds is datetime
+        future_polars = future_polars.with_columns(
+            pl.col('ds').cast(pl.Datetime)
+        )
+        
+        return future_polars
     
     def add_seasonality(
         self, 
@@ -285,17 +402,17 @@ class Seer(_Seer):
             json_str = f.read()
         return cls.from_json(json_str)
     
-    def plot(self, forecast: pd.DataFrame, ax=None, history: Optional[pd.DataFrame] = None, **kwargs):
+    def plot(self, forecast: Union[pl.DataFrame, 'pd.DataFrame'], ax=None, history: Optional[Union[pl.DataFrame, 'pd.DataFrame']] = None, **kwargs):
         """
         Plot the forecast with matplotlib.
         
         Parameters
         ----------
-        forecast : pd.DataFrame
+        forecast : polars.DataFrame or pandas.DataFrame
             Forecast dataframe from predict()
         ax : matplotlib.axes.Axes, optional
             Axes to plot on. If None, creates new figure
-        history : pd.DataFrame, optional
+        history : polars.DataFrame or pandas.DataFrame, optional
             Historical data to plot
         **kwargs : dict
             Additional arguments passed to matplotlib
@@ -307,19 +424,33 @@ class Seer(_Seer):
         """
         import matplotlib.pyplot as plt
         
+        # Convert to pandas for plotting
+        if isinstance(forecast, pl.DataFrame):
+            forecast_pd = forecast.to_pandas()
+        else:
+            forecast_pd = forecast
+            
+        if history is not None:
+            if isinstance(history, pl.DataFrame):
+                history_pd = history.to_pandas()
+            else:
+                history_pd = history
+        else:
+            history_pd = None
+        
         if ax is None:
             fig, ax = plt.subplots(figsize=(10, 6))
         
         # Plot historical data if provided
-        if history is not None and 'y' in history.columns:
-            ax.plot(history['ds'], history['y'], 'k.', label='Observed', markersize=4)
+        if history_pd is not None and 'y' in history_pd.columns:
+            ax.plot(history_pd['ds'], history_pd['y'], 'k.', label='Observed', markersize=4)
         
         # Plot forecast
-        ax.plot(forecast['ds'], forecast['yhat'], label='Forecast', color='blue', linewidth=2)
+        ax.plot(forecast_pd['ds'], forecast_pd['yhat'], label='Forecast', color='blue', linewidth=2)
         ax.fill_between(
-            forecast['ds'],
-            forecast['yhat_lower'],
-            forecast['yhat_upper'],
+            forecast_pd['ds'],
+            forecast_pd['yhat_lower'],
+            forecast_pd['yhat_upper'],
             alpha=0.2,
             color='blue',
             label='Uncertainty interval'
@@ -334,13 +465,13 @@ class Seer(_Seer):
         
         return ax
     
-    def plot_components(self, forecast: pd.DataFrame, figsize=(10, 8)):
+    def plot_components(self, forecast: Union[pl.DataFrame, 'pd.DataFrame'], figsize=(10, 8)):
         """
         Plot the forecast components (trend, seasonalities).
         
         Parameters
         ----------
-        forecast : pd.DataFrame
+        forecast : polars.DataFrame or pandas.DataFrame
             Forecast dataframe from predict()
         figsize : tuple, optional
             Figure size (width, height)
@@ -352,13 +483,19 @@ class Seer(_Seer):
         """
         import matplotlib.pyplot as plt
         
+        # Convert to pandas for plotting
+        if isinstance(forecast, pl.DataFrame):
+            forecast_pd = forecast.to_pandas()
+        else:
+            forecast_pd = forecast
+        
         # Determine which components to plot
         components = []
-        if 'trend' in forecast.columns:
+        if 'trend' in forecast_pd.columns:
             components.append(('trend', 'Trend'))
-        if 'yearly' in forecast.columns:
+        if 'yearly' in forecast_pd.columns:
             components.append(('yearly', 'Yearly Seasonality'))
-        if 'weekly' in forecast.columns:
+        if 'weekly' in forecast_pd.columns:
             components.append(('weekly', 'Weekly Seasonality'))
         
         n_components = len(components)
@@ -371,7 +508,7 @@ class Seer(_Seer):
             axes = [axes]
         
         for ax, (col, title) in zip(axes, components):
-            ax.plot(forecast['ds'], forecast[col], linewidth=1.5)
+            ax.plot(forecast_pd['ds'], forecast_pd[col], linewidth=1.5)
             ax.set_ylabel(title)
             ax.grid(True, alpha=0.3)
             
@@ -380,5 +517,6 @@ class Seer(_Seer):
         plt.tight_layout()
         
         return fig
+
 
 __all__ = ['Seer', '__version__']
