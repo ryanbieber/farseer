@@ -196,7 +196,9 @@ impl Seer {
     }
 
     pub fn with_changepoint_range(mut self, range: f64) -> Result<Self> {
-        if !(0.0..=1.0).contains(&range) {
+        // Note: NaN passes this validation (both comparisons are false).
+        // If you want to reject NaN, add an explicit check: if range.is_nan() { ... }
+        if range < 0.0 || range > 1.0 {
             return Err(crate::SeerError::DataValidation(format!(
                 "changepoint_range must be between 0 and 1, got {}",
                 range
