@@ -1,5 +1,4 @@
 name: CI
-
 on:
   push:
     branches: [ master, main, develop ]
@@ -15,18 +14,18 @@ jobs:
       matrix:
         python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
         os: [ubuntu-latest, windows-latest, macos-latest]
-    
+   
     steps:
       - uses: actions/checkout@v4
-      
+     
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      
+     
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
+     
       - name: Cache Rust dependencies
         uses: actions/cache@v4
         with:
@@ -37,34 +36,37 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      
+     
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install maturin pytest
-      
-      - name: Build package
-        run: maturin develop --release
-      
+     
+      - name: Build and install package
+        run: |
+          maturin build --release
+          pip install target/wheels/*.whl
+        shell: bash
+     
       - name: Run Python tests
         run: pytest tests/ -v
-      
+     
       - name: Run Rust tests
         run: cargo test --all-features
-  
+ 
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+     
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      
+     
       - name: Check formatting
         run: cargo fmt --all -- --check
-      
+     
       - name: Run clippy
         run: cargo clippy --all-features -- -D warnings
