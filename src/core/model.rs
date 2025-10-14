@@ -419,7 +419,7 @@ impl Seer {
         let sigmas = vec![10.0; total_features]; // Default prior scale
         
         // Use CmdStan optimizer (110x faster than BridgeStan)
-        // Set LD_LIBRARY_PATH=./prophet_stan_model to find TBB libraries
+        // Set LD_LIBRARY_PATH=./stan to find TBB libraries
         let result = stan_model.optimize_with_cmdstan(
             &t_hist,
             &y_scaled,  // Use scaled y
@@ -527,6 +527,8 @@ impl Seer {
         // Seasonality contributions
         let mut yearly_comp: Option<Vec<f64>> = None;
         let mut weekly_comp: Option<Vec<f64>> = None;
+        let mut yearly_is_multiplicative = false;
+        let mut weekly_is_multiplicative = false;
         let mut seasonal_additive = vec![0.0; ds.len()];
         let mut seasonal_multiplicative = vec![0.0; ds.len()];
         
@@ -587,8 +589,14 @@ impl Seer {
                     }
                 }
                 
-                if block.name == "yearly" { yearly_comp = Some(comp.clone()); }
-                if block.name == "weekly" { weekly_comp = Some(comp.clone()); }
+                if block.name == "yearly" {
+                    yearly_comp = Some(comp.clone());
+                    yearly_is_multiplicative = matches!(mode, SeasonalityMode::Multiplicative);
+                }
+                if block.name == "weekly" {
+                    weekly_comp = Some(comp.clone());
+                    weekly_is_multiplicative = matches!(mode, SeasonalityMode::Multiplicative);
+                }
             }
         }
         
@@ -661,8 +669,26 @@ impl Seer {
         let yhat_upper: Vec<f64> = yhat.iter().map(|&y| y + margin).collect();
 
         // Unscale seasonal components
-        let yearly_unscaled = yearly_comp.map(|v| v.iter().map(|&x| x * self.y_scale).collect());
-        let weekly_unscaled = weekly_comp.map(|v| v.iter().map(|&x| x * self.y_scale).collect());
+        // For multiplicative seasonality, components should remain as fractional values (not scaled)
+        // For additive seasonality, components should be scaled to original units
+        let yearly_unscaled = yearly_comp.map(|v| {
+            if yearly_is_multiplicative {
+                // Multiplicative: keep as fractional values (e.g., 0.2 = 20% increase)
+                v
+            } else {
+                // Additive: scale to original units
+                v.iter().map(|&x| x * self.y_scale).collect()
+            }
+        });
+        let weekly_unscaled = weekly_comp.map(|v| {
+            if weekly_is_multiplicative {
+                // Multiplicative: keep as fractional values
+                v
+            } else {
+                // Additive: scale to original units
+                v.iter().map(|&x| x * self.y_scale).collect()
+            }
+        });
 
         Ok(ForecastResult {
             ds: ds.to_vec(),

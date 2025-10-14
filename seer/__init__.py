@@ -76,7 +76,13 @@ def _polars_to_pandas(df: pl.DataFrame):
     """Convert polars DataFrame to pandas DataFrame"""
     if not HAS_PANDAS:
         raise ImportError("pandas is not installed, cannot convert to pandas DataFrame")
-    return df.to_pandas()
+    result = df.to_pandas()
+    
+    # Ensure datetime columns use datetime64[ns] for consistency with Prophet
+    if 'ds' in result.columns and pd.api.types.is_datetime64_any_dtype(result['ds']):
+        result['ds'] = result['ds'].astype('datetime64[ns]')
+    
+    return result
 
 
 def _ensure_polars(df) -> pl.DataFrame:
@@ -174,6 +180,11 @@ class Seer(_Seer):
         # Convert to pandas for Rust interop (temporary until Rust supports polars directly)
         df_pandas = df_copy.to_pandas()
         
+        # Ensure ds is datetime64[ns] for proper seasonality calculations
+        # Polars uses nanosecond precision, pandas might not convert properly
+        if 'ds' in df_pandas.columns:
+            df_pandas['ds'] = df_pandas['ds'].astype('datetime64[ns]')
+        
         # Call Rust fit method (handles datetime conversion internally)
         super().fit(df_pandas)
         return self
@@ -222,16 +233,38 @@ class Seer(_Seer):
             # Convert to pandas for Rust interop (temporary)
             df_pandas = df_copy.to_pandas()
             
+            # Ensure ds is datetime64[ns] for proper seasonality calculations
+            # Polars uses nanosecond precision, pandas might not convert properly
+            if 'ds' in df_pandas.columns:
+                df_pandas['ds'] = df_pandas['ds'].astype('datetime64[ns]')
+            
             # Call Rust predict method (handles datetime conversion internally)
             forecast_pandas = super().predict(df_pandas)
         
         # Convert result back to polars
         forecast_polars = pl.from_pandas(forecast_pandas)
         
-        # Ensure ds is datetime
-        forecast_polars = forecast_polars.with_columns(
-            pl.col('ds').str.strptime(pl.Datetime, format='%Y-%m-%d %H:%M:%S', strict=False)
-        )
+        # Ensure ds is datetime with nanosecond precision for compatibility with Prophet
+        # and proper conversion to pandas datetime64[ns]
+        ds_dtype = forecast_polars['ds'].dtype
+        if ds_dtype == pl.String:
+            # Rust returned strings, need to parse them
+            # Try date-only format first (most common case)
+            try:
+                forecast_polars = forecast_polars.with_columns(
+                    pl.col('ds').str.strptime(pl.Datetime('ns'), format='%Y-%m-%d', strict=False)
+                )
+            except Exception:
+                # If that fails, try with time component
+                forecast_polars = forecast_polars.with_columns(
+                    pl.col('ds').str.strptime(pl.Datetime('ns'), format='%Y-%m-%d %H:%M:%S', strict=False)
+                )
+        elif ds_dtype != pl.Datetime('ns'):
+            # Not string or nanosecond datetime, cast to nanosecond precision
+            # This ensures proper conversion to pandas datetime64[ns]
+            forecast_polars = forecast_polars.with_columns(
+                pl.col('ds').cast(pl.Datetime('ns'))
+            )
         
         return forecast_polars
     
@@ -264,9 +297,9 @@ class Seer(_Seer):
         # Convert to polars
         future_polars = pl.from_pandas(future_pandas)
         
-        # Ensure ds is datetime
+        # Ensure ds is datetime with nanosecond precision for compatibility with Prophet
         future_polars = future_polars.with_columns(
-            pl.col('ds').cast(pl.Datetime)
+            pl.col('ds').cast(pl.Datetime('ns'))
         )
         
         return future_polars

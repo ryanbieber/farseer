@@ -21,16 +21,16 @@ impl StanModel {
     pub fn new_with_threads(_num_threads: Option<usize>) -> Result<Self> {
         // Try multiple paths to find the prophet model binary
         let possible_paths = vec![
-            PathBuf::from("prophet_stan_model/prophet_model"),
-            PathBuf::from("./prophet_stan_model/prophet_model"),
+            PathBuf::from("stan/prophet_model"),
+            PathBuf::from("./stan/prophet_model"),
             std::env::current_exe()
                 .ok()
-                .and_then(|exe| exe.parent().map(|p| p.join("prophet_stan_model/prophet_model")))
-                .unwrap_or_else(|| PathBuf::from("prophet_stan_model/prophet_model")),
+                .and_then(|exe| exe.parent().map(|p| p.join("stan/prophet_model")))
+                .unwrap_or_else(|| PathBuf::from("stan/prophet_model")),
             std::env::var("PROPHET_MODEL_PATH")
                 .ok()
                 .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("prophet_stan_model/prophet_model")),
+                .unwrap_or_else(|| PathBuf::from("stan/prophet_model")),
         ];
         
         // Find the first path that exists
@@ -186,7 +186,7 @@ impl StanModel {
         
         // Create CmdStan optimizer
         let cmdstan_path = std::env::var("SEER_CMDSTAN_PATH")
-            .unwrap_or_else(|_| "prophet_stan_model/prophet_model".to_string());
+            .unwrap_or_else(|_| "stan/prophet_model".to_string());
         
         let optimizer = CmdStanOptimizer::with_model_path(&cmdstan_path);
         

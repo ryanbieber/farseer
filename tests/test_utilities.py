@@ -170,7 +170,7 @@ class TestDateHandling:
     def test_infer_frequency_hourly(self):
         """Test frequency inference for hourly data"""
         df = pd.DataFrame({
-            'ds': pd.date_range('2020-01-01', periods=100, freq='H'),
+            'ds': pd.date_range('2020-01-01', periods=100, freq='h'),
             'y': range(100)
         })
         
@@ -178,7 +178,7 @@ class TestDateHandling:
         m.fit(df)
         
         # Should infer hourly frequency
-        future = m.make_future_dataframe(periods=24, freq='H')
+        future = m.make_future_dataframe(periods=24, freq='h')
         assert len(future) == 124
     
     def test_irregular_dates(self):

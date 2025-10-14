@@ -417,14 +417,14 @@ class TestFutureDataframe:
     def test_make_future_dataframe_hourly(self):
         """Test creating future dataframe with hourly frequency"""
         df = pd.DataFrame({
-            'ds': pd.date_range('2020-01-01', periods=100, freq='H'),
+            'ds': pd.date_range('2020-01-01', periods=100, freq='h'),
             'y': np.arange(100)
         })
         
         model = Seer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df)
         
-        future = model.make_future_dataframe(periods=24, freq='H')
+        future = model.make_future_dataframe(periods=24, freq='h')
         assert len(future) == 124
         
     def test_make_future_dataframe_weekly(self):
@@ -439,6 +439,103 @@ class TestFutureDataframe:
         
         future = model.make_future_dataframe(periods=10, freq='W')
         assert len(future) == 110
+
+    def test_predict_with_future_dataframe_fills_forecasts(self):
+        """Test that predict properly fills in all future dates from make_future_dataframe"""
+        # Create training data
+        df = pd.DataFrame({
+            'ds': pd.date_range('2020-01-01', periods=100, freq='D'),
+            'y': np.arange(100) * 0.5 + 10 + np.random.randn(100) * 0.1
+        })
+        
+        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model.fit(df)
+        
+        # Create future dataframe with history
+        future_with_history = model.make_future_dataframe(periods=30, freq='D', include_history=True)
+        forecast_with_history = model.predict(future_with_history)
+        
+        # Convert to pandas if polars
+        if hasattr(forecast_with_history, 'to_pandas'):
+            forecast_with_history = forecast_with_history.to_pandas()
+        
+        # Verify all dates are filled
+        assert len(forecast_with_history) == 130, f"Expected 130 rows, got {len(forecast_with_history)}"
+        assert forecast_with_history['ds'].notna().all(), "Some dates are missing"
+        assert forecast_with_history['yhat'].notna().all(), "Some predictions are missing"
+        
+        # Verify the last 30 rows are future predictions
+        last_training_date = df['ds'].max()
+        future_rows = forecast_with_history[forecast_with_history['ds'] > last_training_date]
+        assert len(future_rows) == 30, f"Expected 30 future rows, got {len(future_rows)}"
+        
+        # Verify all future predictions have values
+        assert future_rows['yhat'].notna().all(), "Some future predictions are missing"
+        assert future_rows['yhat_lower'].notna().all(), "Some future lower bounds are missing"
+        assert future_rows['yhat_upper'].notna().all(), "Some future upper bounds are missing"
+        assert future_rows['trend'].notna().all(), "Some future trends are missing"
+        
+        # Test without history
+        future_only = model.make_future_dataframe(periods=30, freq='D', include_history=False)
+        forecast_only = model.predict(future_only)
+        
+        # Convert to pandas if polars
+        if hasattr(forecast_only, 'to_pandas'):
+            forecast_only = forecast_only.to_pandas()
+        
+        # Verify all future dates are filled
+        assert len(forecast_only) == 30, f"Expected 30 rows, got {len(forecast_only)}"
+        assert forecast_only['ds'].notna().all(), "Some dates are missing (future only)"
+        assert forecast_only['yhat'].notna().all(), "Some predictions are missing (future only)"
+        
+        # Verify dates are consecutive and in the future
+        assert (forecast_only['ds'] > last_training_date).all(), "Some dates are not in the future"
+        date_diffs = forecast_only['ds'].diff()[1:]
+        expected_diff = pd.Timedelta(days=1)
+        assert (date_diffs == expected_diff).all(), "Dates are not consecutive"
+        
+    def test_predict_with_future_dataframe_different_frequencies(self):
+        """Test that predict works with different frequencies"""
+        # Test hourly
+        df_hourly = pd.DataFrame({
+            'ds': pd.date_range('2020-01-01', periods=168, freq='h'),  # 1 week
+            'y': np.sin(np.arange(168) * 2 * np.pi / 24) + 10
+        })
+        
+        model_hourly = Seer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=True)
+        model_hourly.fit(df_hourly)
+        
+        future_hourly = model_hourly.make_future_dataframe(periods=24, freq='h')
+        forecast_hourly = model_hourly.predict(future_hourly)
+        
+        if hasattr(forecast_hourly, 'to_pandas'):
+            forecast_hourly = forecast_hourly.to_pandas()
+        
+        assert len(forecast_hourly) == 192, "Hourly forecast length incorrect"
+        assert forecast_hourly['yhat'].notna().all(), "Hourly predictions have missing values"
+        
+        # Test monthly
+        df_monthly = pd.DataFrame({
+            'ds': pd.date_range('2020-01-01', periods=24, freq='MS'),
+            'y': np.arange(24) * 2 + 100
+        })
+        
+        model_monthly = Seer(yearly_seasonality=True, weekly_seasonality=False)
+        model_monthly.fit(df_monthly)
+        
+        future_monthly = model_monthly.make_future_dataframe(periods=12, freq='MS')
+        forecast_monthly = model_monthly.predict(future_monthly)
+        
+        if hasattr(forecast_monthly, 'to_pandas'):
+            forecast_monthly = forecast_monthly.to_pandas()
+        
+        assert len(forecast_monthly) == 36, "Monthly forecast length incorrect"
+        assert forecast_monthly['yhat'].notna().all(), "Monthly predictions have missing values"
+        
+        # Verify future months are filled
+        last_training_date = df_monthly['ds'].max()
+        future_monthly_rows = forecast_monthly[forecast_monthly['ds'] > last_training_date]
+        assert len(future_monthly_rows) == 12, "Expected 12 future months"
 
 
 class TestUncertaintyIntervals:

@@ -49,7 +49,7 @@ pub struct CmdStanOptimizer {
 impl CmdStanOptimizer {
     pub fn new(config: CmdStanConfig) -> Self {
         let model_path = Self::find_model_binary()
-            .unwrap_or_else(|| std::path::PathBuf::from("prophet_stan_model/prophet_model"));
+            .unwrap_or_else(|| std::path::PathBuf::from("stan/prophet_model"));
         
         Self { 
             _config: config,
@@ -77,11 +77,11 @@ impl CmdStanOptimizer {
         // Try various relative and absolute paths
         let candidates = vec![
             // Relative to current working directory
-            "prophet_stan_model/prophet_model",
-            "./prophet_stan_model/prophet_model",
-            "../prophet_stan_model/prophet_model",
+            "stan/prophet_model",
+            "./stan/prophet_model",
+            "../stan/prophet_model",
             // Try to find via cargo manifest dir (compile-time)
-            concat!(env!("CARGO_MANIFEST_DIR"), "/prophet_stan_model/prophet_model"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/stan/prophet_model"),
         ];
 
         for candidate in candidates {
@@ -107,10 +107,10 @@ impl CmdStanOptimizer {
         // Check if model binary exists
         if !self.model_path.exists() {
             let candidates = vec![
-                "prophet_stan_model/prophet_model",
-                "./prophet_stan_model/prophet_model",
-                concat!(env!("CARGO_MANIFEST_DIR"), "/prophet_stan_model/prophet_model"),
-                concat!(env!("CARGO_MANIFEST_DIR"), "/prophet_stan_model/prophet_model"),
+                "stan/prophet_model",
+                "./stan/prophet_model",
+                concat!(env!("CARGO_MANIFEST_DIR"), "/stan/prophet_model"),
+                concat!(env!("CARGO_MANIFEST_DIR"), "/stan/prophet_model"),
             ];
             return Err(crate::SeerError::StanError(format!(
                 "Prophet model binary not found. Tried:\n  - {}\n  - {}\nSet PROPHET_MODEL_PATH environment variable to specify location.",
@@ -153,7 +153,7 @@ impl CmdStanOptimizer {
 
         // Set LD_LIBRARY_PATH for TBB libraries
         let model_dir = self.model_path.parent()
-            .unwrap_or_else(|| std::path::Path::new("prophet_stan_model"));
+            .unwrap_or_else(|| std::path::Path::new("stan"));
         
         let ld_library_path = std::env::var("LD_LIBRARY_PATH")
             .unwrap_or_default();
