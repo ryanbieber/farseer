@@ -89,6 +89,7 @@ pub struct Seer {
     t_change: Vec<f64>,
     // Y scaling (Prophet compatibility)
     y_scale: f64,
+    #[allow(dead_code)]
     logistic_floor: bool,
     // Trend params
     k: f64,
@@ -195,7 +196,7 @@ impl Seer {
     }
 
     pub fn with_changepoint_range(mut self, range: f64) -> Result<Self> {
-        if range < 0.0 || range > 1.0 {
+        if !(0.0..=1.0).contains(&range) {
             return Err(crate::SeerError::DataValidation(format!(
                 "changepoint_range must be between 0 and 1, got {}",
                 range
@@ -1181,7 +1182,7 @@ impl Seer {
             country_holidays,
             fitted: params["fitted"].as_bool().unwrap_or(false),
             history: None, // History not serialized
-            t0: params["t0"].as_str().and_then(|s| parse_ds(s)),
+            t0: params["t0"].as_str().and_then(parse_ds),
             t_scale: params["t_scale"].as_f64().unwrap_or(1.0),
             t_change,
             y_scale: params["y_scale"].as_f64().unwrap_or(1.0),

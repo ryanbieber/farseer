@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 /// Stan model wrapper for Prophet-style forecasting
 pub struct StanModel {
+    #[allow(dead_code)]
     model_path: PathBuf,
 }
 
@@ -19,7 +20,7 @@ impl StanModel {
     /// Create a new StanModel with specified number of threads
     pub fn new_with_threads(_num_threads: Option<usize>) -> Result<Self> {
         // Try multiple paths to find the prophet model binary
-        let possible_paths = vec![
+        let possible_paths = [
             PathBuf::from("stan/prophet_model"),
             PathBuf::from("./stan/prophet_model"),
             std::env::current_exe()
@@ -51,6 +52,7 @@ impl StanModel {
     }
 
     /// Optimize the Stan model (find MAP estimate) using CmdStan's L-BFGS
+    #[allow(clippy::too_many_arguments)]
     pub fn optimize(
         &self,
         t: &[f64],
@@ -83,6 +85,7 @@ impl StanModel {
 
     /// Optimize the Stan model with custom configuration
     /// Now delegates to CmdStan optimizer (110x faster than BridgeStan)
+    #[allow(clippy::too_many_arguments)]
     pub fn optimize_with_config(
         &self,
         t: &[f64],
@@ -116,6 +119,7 @@ impl StanModel {
 
     /// Optimize using CmdStan (110x faster than BridgeStan)
     /// This shells out to the compiled Prophet Stan binary
+    #[allow(clippy::too_many_arguments)]
     pub fn optimize_with_cmdstan(
         &self,
         t: &[f64],

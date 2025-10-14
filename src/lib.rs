@@ -1,5 +1,8 @@
 // src/lib.rs - Full structure with Python bindings
 
+// Allow clippy::useless_conversion for PyO3-related false positives
+#![allow(clippy::useless_conversion)]
+
 use numpy::ToPyArray;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -82,6 +85,7 @@ impl Seer {
         uncertainty_samples=1000,
         changepoints=None,
     ))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         growth: &str,
         n_changepoints: usize,
