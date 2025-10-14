@@ -9,42 +9,52 @@ pub struct TimeSeriesData {
 }
 
 impl TimeSeriesData {
-    pub fn new(ds: Vec<String>, y: Vec<f64>, cap: Option<Vec<f64>>, weights: Option<Vec<f64>>) -> crate::Result<Self> {
+    pub fn new(
+        ds: Vec<String>,
+        y: Vec<f64>,
+        cap: Option<Vec<f64>>,
+        weights: Option<Vec<f64>>,
+    ) -> crate::Result<Self> {
         if ds.len() != y.len() {
             return Err(crate::SeerError::DataValidation(
-                "ds and y must have same length".to_string()
+                "ds and y must have same length".to_string(),
             ));
         }
-        
+
         if let Some(ref cap) = cap {
             if cap.len() != ds.len() {
                 return Err(crate::SeerError::DataValidation(
-                    "cap must have same length as ds".to_string()
+                    "cap must have same length as ds".to_string(),
                 ));
             }
         }
-        
+
         if let Some(ref weights) = weights {
             if weights.len() != ds.len() {
                 return Err(crate::SeerError::DataValidation(
-                    "weights must have same length as ds".to_string()
+                    "weights must have same length as ds".to_string(),
                 ));
             }
             // Validate weights are non-negative
             if weights.iter().any(|&w| w < 0.0) {
                 return Err(crate::SeerError::DataValidation(
-                    "weights must be non-negative".to_string()
+                    "weights must be non-negative".to_string(),
                 ));
             }
         }
-        
-        Ok(Self { ds, y, cap, weights })
+
+        Ok(Self {
+            ds,
+            y,
+            cap,
+            weights,
+        })
     }
-    
+
     pub fn len(&self) -> usize {
         self.ds.len()
     }
-    
+
     pub fn is_empty(&self) -> bool {
         self.ds.is_empty()
     }
@@ -116,7 +126,7 @@ mod tests {
     #[test]
     fn test_timeseries_data_length_mismatch() {
         let ds = vec!["2020-01-01".to_string(), "2020-01-02".to_string()];
-        let y = vec![10.0];  // Wrong length
+        let y = vec![10.0]; // Wrong length
         let data = TimeSeriesData::new(ds, y, None, None);
         assert!(data.is_err());
     }
@@ -125,7 +135,7 @@ mod tests {
     fn test_timeseries_data_cap_length_mismatch() {
         let ds = vec!["2020-01-01".to_string(), "2020-01-02".to_string()];
         let y = vec![10.0, 11.0];
-        let cap = vec![20.0];  // Wrong length
+        let cap = vec![20.0]; // Wrong length
         let data = TimeSeriesData::new(ds, y, Some(cap), None);
         assert!(data.is_err());
     }
@@ -134,7 +144,7 @@ mod tests {
     fn test_timeseries_data_weights_length_mismatch() {
         let ds = vec!["2020-01-01".to_string(), "2020-01-02".to_string()];
         let y = vec![10.0, 11.0];
-        let weights = vec![1.0];  // Wrong length
+        let weights = vec![1.0]; // Wrong length
         let data = TimeSeriesData::new(ds, y, None, Some(weights));
         assert!(data.is_err());
     }
@@ -143,7 +153,7 @@ mod tests {
     fn test_timeseries_data_negative_weights() {
         let ds = vec!["2020-01-01".to_string(), "2020-01-02".to_string()];
         let y = vec![10.0, 11.0];
-        let weights = vec![1.0, -0.5];  // Negative weight
+        let weights = vec![1.0, -0.5]; // Negative weight
         let data = TimeSeriesData::new(ds, y, None, Some(weights));
         assert!(data.is_err());
     }

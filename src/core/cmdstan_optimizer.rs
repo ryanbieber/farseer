@@ -20,9 +20,9 @@ pub struct CmdStanConfig {
 impl Default for CmdStanConfig {
     fn default() -> Self {
         Self {
-            iter: 10000,         // Keep high max iterations (rarely hit)
-            tol_grad: 1e-8,      // Keep strict gradient tolerance for accuracy
-            tol_obj: 1e-12,      // Keep strict objective tolerance
+            iter: 10000,    // Keep high max iterations (rarely hit)
+            tol_grad: 1e-8, // Keep strict gradient tolerance for accuracy
+            tol_obj: 1e-12, // Keep strict objective tolerance
             history_size: 5,
             linesearch_condition: 1e-4,
         }
@@ -50,8 +50,8 @@ impl CmdStanOptimizer {
     pub fn new(config: CmdStanConfig) -> Self {
         let model_path = Self::find_model_binary()
             .unwrap_or_else(|| std::path::PathBuf::from("stan/prophet_model"));
-        
-        Self { 
+
+        Self {
             _config: config,
             model_path,
         }
@@ -136,27 +136,28 @@ impl CmdStanOptimizer {
         // Write data in JSON format (CmdStan's preferred input format)
         let data_content = serde_json::to_string_pretty(data)
             .map_err(|e| crate::SeerError::StanError(format!("Failed to serialize data: {}", e)))?;
-        
-        data_file.write_all(data_content.as_bytes())
+
+        data_file
+            .write_all(data_content.as_bytes())
             .map_err(|e| crate::SeerError::Io(e))?;
-        data_file.flush()
-            .map_err(|e| crate::SeerError::Io(e))?;
+        data_file.flush().map_err(|e| crate::SeerError::Io(e))?;
 
         // Write init in JSON format
         let init_content = serde_json::to_string_pretty(init)
             .map_err(|e| crate::SeerError::StanError(format!("Failed to serialize init: {}", e)))?;
-        
-        init_file.write_all(init_content.as_bytes())
+
+        init_file
+            .write_all(init_content.as_bytes())
             .map_err(|e| crate::SeerError::Io(e))?;
-        init_file.flush()
-            .map_err(|e| crate::SeerError::Io(e))?;
+        init_file.flush().map_err(|e| crate::SeerError::Io(e))?;
 
         // Set LD_LIBRARY_PATH for TBB libraries
-        let model_dir = self.model_path.parent()
+        let model_dir = self
+            .model_path
+            .parent()
             .unwrap_or_else(|| std::path::Path::new("stan"));
-        
-        let ld_library_path = std::env::var("LD_LIBRARY_PATH")
-            .unwrap_or_default();
+
+        let ld_library_path = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
         let new_ld_library_path = if ld_library_path.is_empty() {
             model_dir.to_string_lossy().to_string()
         } else {
@@ -193,65 +194,66 @@ impl CmdStanOptimizer {
 
         // Parse the output CSV file
         self.parse_cmdstan_output(output_file.path())
-            }
-    
+    }
+
     /// Parse CmdStan output CSV file
     fn parse_cmdstan_output(&self, path: &std::path::Path) -> Result<OptimizationResult> {
         use std::fs::File;
         use std::io::{BufRead, BufReader};
-        
-        let file = File::open(path)
-            .map_err(|e| crate::SeerError::Io(e))?;
+
+        let file = File::open(path).map_err(|e| crate::SeerError::Io(e))?;
         let reader = BufReader::new(file);
-        
+
         let mut header = Vec::new();
         let mut last_line = String::new();
-        
+
         for line in reader.lines() {
             let line = line.map_err(|e| crate::SeerError::Io(e))?;
-            
+
             // Skip comments
             if line.starts_with('#') {
                 continue;
             }
-            
+
             // First non-comment line is the header
             if header.is_empty() {
                 header = line.split(',').map(|s| s.trim().to_string()).collect();
                 continue;
             }
-            
+
             // Keep track of the last data line (final optimized values)
             if !line.is_empty() {
                 last_line = line;
             }
         }
-        
+
         if last_line.is_empty() {
-            return Err(crate::SeerError::StanError("No optimization output found".to_string()));
+            return Err(crate::SeerError::StanError(
+                "No optimization output found".to_string(),
+            ));
         }
-        
+
         // Parse the last line
-        let values: Vec<f64> = last_line.split(',')
+        let values: Vec<f64> = last_line
+            .split(',')
             .filter_map(|s| s.trim().parse::<f64>().ok())
             .collect();
-        
+
         // Find parameter indices in header
-        let find_index = |name: &str| {
-            header.iter().position(|h| h == name)
-        };
-        
+        let find_index = |name: &str| header.iter().position(|h| h == name);
+
         let k_idx = find_index("k")
             .ok_or_else(|| crate::SeerError::StanError("k not found in output".to_string()))?;
         let m_idx = find_index("m")
             .ok_or_else(|| crate::SeerError::StanError("m not found in output".to_string()))?;
-        let sigma_obs_idx = find_index("sigma_obs")
-            .ok_or_else(|| crate::SeerError::StanError("sigma_obs not found in output".to_string()))?;
-        
+        let sigma_obs_idx = find_index("sigma_obs").ok_or_else(|| {
+            crate::SeerError::StanError("sigma_obs not found in output".to_string())
+        })?;
+
         // Extract delta and beta arrays
         let mut delta = Vec::new();
         let mut beta = Vec::new();
-        
+
         for (i, h) in header.iter().enumerate() {
             if h.starts_with("delta.") {
                 if i < values.len() {
@@ -263,7 +265,7 @@ impl CmdStanOptimizer {
                 }
             }
         }
-        
+
         Ok(OptimizationResult {
             k: values[k_idx],
             m: values[m_idx],

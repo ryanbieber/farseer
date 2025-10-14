@@ -798,6 +798,29 @@ The project was restructured to follow PyO3/maturin best practices:
 
 See [RESTRUCTURING_COMPLETE.md](RESTRUCTURING_COMPLETE.md) for full details.
 
+### Deployment
+
+Seer uses automated deployment to PyPI via GitHub Actions. The workflow:
+
+1. **Tests** - Runs full test suite on Python 3.9-3.13
+2. **Builds** - Creates wheels for Linux, Windows, and macOS
+3. **Test PyPI** - Uploads to Test PyPI and verifies installation
+4. **Production** - Uploads to PyPI only if all previous steps succeed
+
+**For Maintainers:**
+- See [SETUP_CHECKLIST.md](SETUP_CHECKLIST.md) for quick token setup
+- See [PYPI_DEPLOYMENT.md](PYPI_DEPLOYMENT.md) for complete deployment guide
+- Run `./test_deployment.sh` to test locally before releasing
+
+**To Release:**
+```bash
+# Update version in pyproject.toml and Cargo.toml
+# Then create and push a tag
+git tag v0.1.0
+git push origin v0.1.0
+# Create GitHub Release to trigger automated deployment
+```
+
 ## Performance & Benchmarks
 
 ### Speed Comparison

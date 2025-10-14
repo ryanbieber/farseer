@@ -1,12 +1,12 @@
-use crate::core::data::{TimeSeriesData, ForecastResult};
-use crate::core::trend::{
-    parse_ds, time_scale, select_changepoints, changepoint_matrix,
-    piecewise_linear, piecewise_logistic, flat_trend, future_dates,
-};
-use crate::core::seasonality::{fourier_series, hstack, holiday_features};
+use crate::core::data::{ForecastResult, TimeSeriesData};
+use crate::core::seasonality::{fourier_series, holiday_features, hstack};
 use crate::core::stan::StanModel;
-use chrono::NaiveDateTime;
+use crate::core::trend::{
+    changepoint_matrix, flat_trend, future_dates, parse_ds, piecewise_linear, piecewise_logistic,
+    select_changepoints, time_scale,
+};
 use crate::Result;
+use chrono::NaiveDateTime;
 
 #[derive(Debug, Clone, Copy)]
 pub enum TrendType {
@@ -37,18 +37,18 @@ impl HolidayConfig {
             mode: SeasonalityMode::Additive,
         }
     }
-    
+
     pub fn with_windows(mut self, lower: i32, upper: i32) -> Self {
         self.lower_window = lower;
         self.upper_window = upper;
         self
     }
-    
+
     pub fn with_prior_scale(mut self, scale: f64) -> Self {
         self.prior_scale = scale;
         self
     }
-    
+
     pub fn with_mode(mut self, mode: SeasonalityMode) -> Self {
         self.mode = mode;
         self
@@ -72,14 +72,14 @@ pub struct Seer {
     weekly_seasonality: bool,
     daily_seasonality: bool,
     seasonality_mode: SeasonalityMode,
-    
+
     // Custom seasonalities registry
     seasonalities: Vec<SeasonalityConfig>,
-    
+
     // Holidays registry
     holidays: Vec<HolidayConfig>,
     country_holidays: Vec<String>, // Countries to fetch holidays for
-    
+
     // Fitted parameters
     fitted: bool,
     history: Option<TimeSeriesData>,
@@ -139,12 +139,12 @@ impl SeasonalityConfig {
             mode: SeasonalityMode::Additive,
         }
     }
-    
+
     pub fn with_prior_scale(mut self, scale: f64) -> Self {
         self.prior_scale = scale;
         self
     }
-    
+
     pub fn with_mode(mut self, mode: SeasonalityMode) -> Self {
         self.mode = mode;
         self
@@ -183,85 +183,93 @@ impl Seer {
             interval_width: 0.80,
         }
     }
-    
+
     pub fn with_trend(mut self, trend: TrendType) -> Self {
         self.trend = trend;
         self
     }
-    
+
     pub fn with_changepoints(mut self, n: usize) -> Self {
         self.n_changepoints = n;
         self
     }
-    
+
     pub fn with_changepoint_range(mut self, range: f64) -> Result<Self> {
         if range < 0.0 || range > 1.0 {
-            return Err(crate::SeerError::DataValidation(
-                format!("changepoint_range must be between 0 and 1, got {}", range)
-            ));
+            return Err(crate::SeerError::DataValidation(format!(
+                "changepoint_range must be between 0 and 1, got {}",
+                range
+            )));
         }
         self.changepoint_range = range;
         Ok(self)
     }
-    
+
     pub fn with_changepoint_prior_scale(mut self, scale: f64) -> Self {
         self.changepoint_prior_scale = scale;
         self
     }
-    
+
     pub fn with_yearly_seasonality(mut self) -> Self {
         self.yearly_seasonality = true;
         self
     }
-    
+
     pub fn without_yearly_seasonality(mut self) -> Self {
         self.yearly_seasonality = false;
         self
     }
-    
+
     pub fn with_weekly_seasonality(mut self) -> Self {
         self.weekly_seasonality = true;
         self
     }
-    
+
     pub fn without_weekly_seasonality(mut self) -> Self {
         self.weekly_seasonality = false;
         self
     }
-    
+
     pub fn with_daily_seasonality(mut self) -> Self {
         self.daily_seasonality = true;
         self
     }
-    
+
     pub fn without_daily_seasonality(mut self) -> Self {
         self.daily_seasonality = false;
         self
     }
-    
+
     pub fn with_seasonality_mode(mut self, mode: &str) -> Result<Self> {
         let seasonality_mode = match mode.to_lowercase().as_str() {
             "additive" => SeasonalityMode::Additive,
             "multiplicative" => SeasonalityMode::Multiplicative,
-            _ => return Err(crate::SeerError::DataValidation(
-                format!("Invalid seasonality mode: {}. Must be 'additive' or 'multiplicative'.", mode)
-            )),
+            _ => {
+                return Err(crate::SeerError::DataValidation(format!(
+                    "Invalid seasonality mode: {}. Must be 'additive' or 'multiplicative'.",
+                    mode
+                )))
+            }
         };
         self.seasonality_mode = seasonality_mode;
         Ok(self)
     }
-    
+
     pub fn with_interval_width(mut self, width: f64) -> Self {
         self.interval_width = width;
         self
     }
-    
+
     pub fn fit(&mut self, data: &TimeSeriesData) -> Result<()> {
         // Parse ds -> timestamps
         let ts: Vec<NaiveDateTime> = data
             .ds
             .iter()
-            .map(|s| parse_ds(s).ok_or_else(|| crate::SeerError::DataValidation(format!("Invalid date format: {}", s))))
+            .map(|s| {
+                parse_ds(s).ok_or_else(|| {
+                    crate::SeerError::DataValidation(format!("Invalid date format: {}", s))
+                })
+            })
             .collect::<std::result::Result<_, _>>()?;
 
         // Time scaling t in [0,1]
@@ -271,14 +279,14 @@ impl Seer {
         // If user set seasonality to 'auto' (true), we auto-detect
         // Otherwise we respect their explicit choice
         let data_span_days = (ts[ts.len() - 1] - ts[0]).num_days() as f64;
-        
+
         let use_yearly = if self.yearly_seasonality {
             // Only use yearly if we have at least 2 years of data
             data_span_days >= 730.0
         } else {
             false
         };
-        
+
         let use_weekly = self.weekly_seasonality; // Weekly is usually always on
         let use_daily = self.daily_seasonality;
 
@@ -294,13 +302,17 @@ impl Seer {
         // Build seasonality registry from toggles and custom seasonalities
         let mut all_seasonalities = Vec::new();
         if use_yearly {
-            all_seasonalities.push(SeasonalityConfig::new("yearly", 365.25, 10).with_mode(self.seasonality_mode));
+            all_seasonalities.push(
+                SeasonalityConfig::new("yearly", 365.25, 10).with_mode(self.seasonality_mode),
+            );
         }
         if use_weekly {
-            all_seasonalities.push(SeasonalityConfig::new("weekly", 7.0, 3).with_mode(self.seasonality_mode));
+            all_seasonalities
+                .push(SeasonalityConfig::new("weekly", 7.0, 3).with_mode(self.seasonality_mode));
         }
         if use_daily {
-            all_seasonalities.push(SeasonalityConfig::new("daily", 1.0, 4).with_mode(self.seasonality_mode));
+            all_seasonalities
+                .push(SeasonalityConfig::new("daily", 1.0, 4).with_mode(self.seasonality_mode));
         }
         // Add custom seasonalities
         all_seasonalities.extend(self.seasonalities.clone());
@@ -309,7 +321,7 @@ impl Seer {
         let mut blocks_multiplicative: Vec<Vec<Vec<f64>>> = Vec::new();
         let mut season_blocks: Vec<SeasonBlock> = Vec::new();
         let mut col_start = 0usize;
-        
+
         for config in &all_seasonalities {
             let fb = fourier_series(&t_days, config.period, config.fourier_order);
             let cols = if fb.is_empty() { 0 } else { fb[0].len() };
@@ -319,12 +331,12 @@ impl Seer {
                     SeasonalityMode::Multiplicative => blocks_multiplicative.push(fb),
                 }
                 let col_end = col_start + cols;
-                season_blocks.push(SeasonBlock { 
-                    name: config.name.clone(), 
-                    period: config.period, 
-                    order: config.fourier_order, 
-                    start: col_start, 
-                    end: col_end 
+                season_blocks.push(SeasonBlock {
+                    name: config.name.clone(),
+                    period: config.period,
+                    order: config.fourier_order,
+                    start: col_start,
+                    end: col_end,
                 });
                 col_start = col_end;
             }
@@ -338,7 +350,7 @@ impl Seer {
         let mut holiday_blocks_additive: Vec<Vec<Vec<f64>>> = Vec::new();
         let mut holiday_blocks_multiplicative: Vec<Vec<Vec<f64>>> = Vec::new();
         let mut holiday_blocks: Vec<HolidayBlock> = Vec::new();
-        
+
         for config in &self.holidays {
             let hf = holiday_features(&ts, &config.dates, config.lower_window, config.upper_window);
             let cols = if hf.is_empty() { 0 } else { hf[0].len() };
@@ -356,7 +368,7 @@ impl Seer {
                 col_start = col_end;
             }
         }
-        
+
         // Combine holiday blocks with seasonality blocks
         blocks.extend(holiday_blocks_additive);
         blocks.extend(holiday_blocks_multiplicative);
@@ -383,14 +395,19 @@ impl Seer {
         };
 
         // Build feature mode indicators (additive vs multiplicative)
-        let total_features = if x_matrix.is_empty() { 0 } else { x_matrix[0].len() };
+        let total_features = if x_matrix.is_empty() {
+            0
+        } else {
+            x_matrix[0].len()
+        };
         let mut s_a = vec![0.0; total_features];
         let mut s_m = vec![0.0; total_features];
-        
+
         for block in &season_blocks {
             for i in block.start..block.end {
                 // Find the corresponding seasonality config
-                let config = all_seasonalities.iter()
+                let config = all_seasonalities
+                    .iter()
                     .find(|c| c.name == block.name)
                     .unwrap();
                 match config.mode {
@@ -402,28 +419,30 @@ impl Seer {
 
         // Use Stan for parameter estimation
         let stan_model = StanModel::new()?;
-        
+
         // Scale y (Prophet uses absmax scaling by default)
         // y_scale = max(abs(y)) to keep predictions interpretable
-        let y_scale = data.y.iter()
+        let y_scale = data
+            .y
+            .iter()
             .map(|&v| v.abs())
             .fold(0.0_f64, f64::max)
             .max(1.0); // Minimum 1.0 to avoid division issues
-        
+
         let y_scaled: Vec<f64> = data.y.iter().map(|&v| v / y_scale).collect();
-        
+
         // Scale cap if logistic growth
         let cap_scaled: Vec<f64> = cap.iter().map(|&v| v / y_scale).collect();
-        
+
         // Prepare prior scales for regressors
         let sigmas = vec![10.0; total_features]; // Default prior scale
-        
+
         // Use CmdStan optimizer (110x faster than BridgeStan)
         // Set LD_LIBRARY_PATH=./stan to find TBB libraries
         let result = stan_model.optimize_with_cmdstan(
             &t_hist,
-            &y_scaled,  // Use scaled y
-            &cap_scaled,  // Use scaled cap
+            &y_scaled,   // Use scaled y
+            &cap_scaled, // Use scaled cap
             &x_matrix,
             &sigmas,
             self.changepoint_prior_scale,
@@ -431,9 +450,9 @@ impl Seer {
             &s_a,
             &s_m,
             &t_change,
-            data.weights.as_deref(),  // Pass weights
+            data.weights.as_deref(), // Pass weights
         )?;
-        
+
         // Parameters are in scaled space - we'll unscale during prediction
         let k = result.k;
         let m = result.m;
@@ -447,7 +466,7 @@ impl Seer {
         self.t0 = Some(t0);
         self.t_scale = t_scale;
         self.t_change = t_change;
-        self.y_scale = y_scale;  // Save scaling factor
+        self.y_scale = y_scale; // Save scaling factor
         self.k = k;
         self.m = m;
         self.delta = delta;
@@ -458,7 +477,7 @@ impl Seer {
         self.sigma_obs = sigma_obs;
         Ok(())
     }
-    
+
     pub fn predict(&self, ds: &[String]) -> Result<ForecastResult> {
         self.predict_with_cap(ds, None)
     }
@@ -466,24 +485,29 @@ impl Seer {
     pub fn predict_with_cap(&self, ds: &[String], cap: Option<Vec<f64>>) -> Result<ForecastResult> {
         if !self.fitted {
             return Err(crate::SeerError::Prediction(
-                "Model must be fitted before prediction".to_string()
+                "Model must be fitted before prediction".to_string(),
             ));
         }
-        
+
         // Build t in model units for incoming ds
         let t0 = self.t0.unwrap();
         let mut t: Vec<f64> = Vec::with_capacity(ds.len());
         for s in ds.iter() {
-            let dt = parse_ds(s)
-                .ok_or_else(|| crate::SeerError::Prediction(format!("Invalid date format: {}", s)))?;
+            let dt = parse_ds(s).ok_or_else(|| {
+                crate::SeerError::Prediction(format!("Invalid date format: {}", s))
+            })?;
             let us = (dt - t0).num_microseconds().unwrap_or(0) as f64 / 1_000_000.0;
-            let ti = if self.t_scale > 0.0 { us / self.t_scale } else { 0.0 };
+            let ti = if self.t_scale > 0.0 {
+                us / self.t_scale
+            } else {
+                0.0
+            };
             t.push(ti);
         }
 
         // Changepoint matrix and piecewise trend
         let a = changepoint_matrix(&t, &self.t_change);
-        
+
         let trend = match self.trend {
             TrendType::Linear => {
                 piecewise_linear(self.k, self.m, &self.delta, &t, &a, &self.t_change)
@@ -493,9 +517,11 @@ impl Seer {
                 let cap_vec_unscaled = if let Some(cap_provided) = cap {
                     // Validate cap length matches ds length
                     if cap_provided.len() != ds.len() {
-                        return Err(crate::SeerError::Prediction(
-                            format!("Cap length ({}) must match ds length ({})", cap_provided.len(), ds.len())
-                        ));
+                        return Err(crate::SeerError::Prediction(format!(
+                            "Cap length ({}) must match ds length ({})",
+                            cap_provided.len(),
+                            ds.len()
+                        )));
                     }
                     cap_provided
                 } else if let Some(history) = self.history.as_ref() {
@@ -516,12 +542,19 @@ impl Seer {
                     vec![1e9; ds.len()]
                 };
                 // Scale cap by y_scale (model parameters are in scaled space)
-                let cap_vec: Vec<f64> = cap_vec_unscaled.iter().map(|&v| v / self.y_scale).collect();
-                piecewise_logistic(self.k, self.m, &self.delta, &t, &cap_vec, &a, &self.t_change)
+                let cap_vec: Vec<f64> =
+                    cap_vec_unscaled.iter().map(|&v| v / self.y_scale).collect();
+                piecewise_logistic(
+                    self.k,
+                    self.m,
+                    &self.delta,
+                    &t,
+                    &cap_vec,
+                    &a,
+                    &self.t_change,
+                )
             }
-            TrendType::Flat => {
-                flat_trend(self.m, ds.len())
-            }
+            TrendType::Flat => flat_trend(self.m, ds.len()),
         };
 
         // Seasonality contributions
@@ -531,7 +564,7 @@ impl Seer {
         let mut weekly_is_multiplicative = false;
         let mut seasonal_additive = vec![0.0; ds.len()];
         let mut seasonal_multiplicative = vec![0.0; ds.len()];
-        
+
         if !self.beta.is_empty() && !self.season_blocks.is_empty() {
             let t0 = self.t0.unwrap();
             let t_days: Vec<f64> = ds
@@ -541,22 +574,29 @@ impl Seer {
                     (dt - t0).num_seconds() as f64 / 86_400.0
                 })
                 .collect();
-            
+
             // Build seasonality registry to determine mode for each component
             let mut all_seasonalities = Vec::new();
             if self.yearly_seasonality {
-                all_seasonalities.push(SeasonalityConfig::new("yearly", 365.25, 10).with_mode(self.seasonality_mode));
+                all_seasonalities.push(
+                    SeasonalityConfig::new("yearly", 365.25, 10).with_mode(self.seasonality_mode),
+                );
             }
             if self.weekly_seasonality {
-                all_seasonalities.push(SeasonalityConfig::new("weekly", 7.0, 3).with_mode(self.seasonality_mode));
+                all_seasonalities.push(
+                    SeasonalityConfig::new("weekly", 7.0, 3).with_mode(self.seasonality_mode),
+                );
             }
             if self.daily_seasonality {
-                all_seasonalities.push(SeasonalityConfig::new("daily", 1.0, 4).with_mode(self.seasonality_mode));
+                all_seasonalities
+                    .push(SeasonalityConfig::new("daily", 1.0, 4).with_mode(self.seasonality_mode));
             }
             all_seasonalities.extend(self.seasonalities.clone());
-            
+
             for (idx, block) in self.season_blocks.iter().enumerate() {
-                if block.start == block.end { continue; }
+                if block.start == block.end {
+                    continue;
+                }
                 let x_block = fourier_series(&t_days, block.period, block.order);
                 let beta_slice = &self.beta[block.start..block.end];
                 let mut comp = vec![0.0; ds.len()];
@@ -568,14 +608,14 @@ impl Seer {
                     }
                     comp[i] = v;
                 }
-                
+
                 // Determine mode for this component
                 let mode = if idx < all_seasonalities.len() {
                     all_seasonalities[idx].mode
                 } else {
                     SeasonalityMode::Additive
                 };
-                
+
                 match mode {
                     SeasonalityMode::Additive => {
                         for i in 0..ds.len() {
@@ -588,7 +628,7 @@ impl Seer {
                         }
                     }
                 }
-                
+
                 if block.name == "yearly" {
                     yearly_comp = Some(comp.clone());
                     yearly_is_multiplicative = matches!(mode, SeasonalityMode::Multiplicative);
@@ -599,24 +639,29 @@ impl Seer {
                 }
             }
         }
-        
+
         // Holiday contributions
         if !self.holiday_blocks.is_empty() {
             let t0 = self.t0.unwrap();
-            let future_ts: Vec<NaiveDateTime> = ds
-                .iter()
-                .map(|s| parse_ds(s).unwrap_or(t0))
-                .collect();
-            
+            let future_ts: Vec<NaiveDateTime> =
+                ds.iter().map(|s| parse_ds(s).unwrap_or(t0)).collect();
+
             for (idx, h_block) in self.holiday_blocks.iter().enumerate() {
-                if h_block.start == h_block.end { continue; }
-                
+                if h_block.start == h_block.end {
+                    continue;
+                }
+
                 // Get holiday config for this block
                 if idx < self.holidays.len() {
                     let config = &self.holidays[idx];
-                    let hf = holiday_features(&future_ts, &config.dates, config.lower_window, config.upper_window);
+                    let hf = holiday_features(
+                        &future_ts,
+                        &config.dates,
+                        config.lower_window,
+                        config.upper_window,
+                    );
                     let beta_slice = &self.beta[h_block.start..h_block.end];
-                    
+
                     let mut comp = vec![0.0; ds.len()];
                     for i in 0..hf.len() {
                         let row = &hf[i];
@@ -626,7 +671,7 @@ impl Seer {
                         }
                         comp[i] = v;
                     }
-                    
+
                     // Apply based on mode
                     match config.mode {
                         SeasonalityMode::Additive => {
@@ -649,11 +694,11 @@ impl Seer {
         let yhat_scaled: Vec<f64> = (0..ds.len())
             .map(|i| trend[i] * (1.0 + seasonal_multiplicative[i]) + seasonal_additive[i])
             .collect();
-        
+
         // Unscale predictions back to original scale
         let yhat: Vec<f64> = yhat_scaled.iter().map(|&v| v * self.y_scale).collect();
         let trend: Vec<f64> = trend.iter().map(|&v| v * self.y_scale).collect();
-        
+
         // Uncertainty intervals using sigma_obs and interval_width
         // Approximate z-score for 80% interval: ~1.28, for 95%: ~1.96
         let z_score = match (self.interval_width * 100.0).round() as i32 {
@@ -667,7 +712,7 @@ impl Seer {
         let margin = z_score * self.sigma_obs * self.y_scale;
         let yhat_lower: Vec<f64> = yhat.iter().map(|&y| y - margin).collect();
         let yhat_upper: Vec<f64> = yhat.iter().map(|&y| y + margin).collect();
-        
+
         // Trend uncertainty intervals (same margin as yhat for now)
         let trend_lower: Vec<f64> = trend.iter().map(|&t| t - margin).collect();
         let trend_upper: Vec<f64> = trend.iter().map(|&t| t + margin).collect();
@@ -688,7 +733,7 @@ impl Seer {
             // No yearly component - return zeros for Prophet compatibility
             vec![0.0; ds.len()]
         };
-        
+
         let weekly_unscaled = if let Some(v) = weekly_comp.as_ref() {
             if weekly_is_multiplicative {
                 // Multiplicative: keep as fractional values
@@ -701,24 +746,29 @@ impl Seer {
             // No weekly component - return zeros for Prophet compatibility
             vec![0.0; ds.len()]
         };
-        
+
         // Compute uncertainty intervals for yearly component
         let yearly_lower: Vec<f64> = yearly_unscaled.iter().map(|&y| y - margin).collect();
         let yearly_upper: Vec<f64> = yearly_unscaled.iter().map(|&y| y + margin).collect();
-        
+
         // Compute uncertainty intervals for weekly component
         let weekly_lower: Vec<f64> = weekly_unscaled.iter().map(|&w| w - margin).collect();
         let weekly_upper: Vec<f64> = weekly_unscaled.iter().map(|&w| w + margin).collect();
-        
+
         // Compute additive and multiplicative terms
-        let additive_terms: Vec<f64> = seasonal_additive.iter().map(|&v| v * self.y_scale).collect();
+        let additive_terms: Vec<f64> = seasonal_additive
+            .iter()
+            .map(|&v| v * self.y_scale)
+            .collect();
         let multiplicative_terms: Vec<f64> = seasonal_multiplicative.clone();
-        
+
         // Uncertainty intervals for additive and multiplicative terms
         let additive_terms_lower: Vec<f64> = additive_terms.iter().map(|&v| v - margin).collect();
         let additive_terms_upper: Vec<f64> = additive_terms.iter().map(|&v| v + margin).collect();
-        let multiplicative_terms_lower: Vec<f64> = multiplicative_terms.iter().map(|&v| v - margin).collect();
-        let multiplicative_terms_upper: Vec<f64> = multiplicative_terms.iter().map(|&v| v + margin).collect();
+        let multiplicative_terms_lower: Vec<f64> =
+            multiplicative_terms.iter().map(|&v| v - margin).collect();
+        let multiplicative_terms_upper: Vec<f64> =
+            multiplicative_terms.iter().map(|&v| v + margin).collect();
 
         Ok(ForecastResult {
             ds: ds.to_vec(),
@@ -742,7 +792,7 @@ impl Seer {
             yhat,
         })
     }
-    
+
     pub fn make_future_dates(
         &self,
         periods: usize,
@@ -751,10 +801,10 @@ impl Seer {
     ) -> Result<Vec<String>> {
         if !self.fitted {
             return Err(crate::SeerError::Prediction(
-                "Model must be fitted before making future dates".to_string()
+                "Model must be fitted before making future dates".to_string(),
             ));
         }
-        
+
         let history = self.history.as_ref().unwrap();
         let mut out = Vec::new();
         if include_history {
@@ -762,26 +812,24 @@ impl Seer {
         }
 
         // Determine last timestamp from history
-        let last_ts = history
-            .ds
-            .last()
-            .and_then(|s| parse_ds(s))
-            .ok_or_else(|| crate::SeerError::Prediction("Unable to parse last history date".to_string()))?;
+        let last_ts = history.ds.last().and_then(|s| parse_ds(s)).ok_or_else(|| {
+            crate::SeerError::Prediction("Unable to parse last history date".to_string())
+        })?;
 
         // Support multiple frequencies: H (hourly), D (daily), W (weekly), M (monthly), Y (yearly)
         let fut = future_dates(last_ts, periods, freq);
         out.extend(fut);
         Ok(out)
     }
-    
+
     pub fn trend_type(&self) -> TrendType {
         self.trend
     }
-    
+
     pub fn n_changepoints(&self) -> usize {
         self.n_changepoints
     }
-    
+
     pub fn add_seasonality(
         &mut self,
         name: &str,
@@ -793,47 +841,52 @@ impl Seer {
         // Validate fourier_order
         if fourier_order == 0 {
             return Err(crate::SeerError::DataValidation(
-                "Fourier order must be greater than 0".to_string()
+                "Fourier order must be greater than 0".to_string(),
             ));
         }
-        
+
         // Check for duplicate names
         if self.seasonalities.iter().any(|s| s.name == name) {
-            return Err(crate::SeerError::DataValidation(
-                format!("Seasonality with name '{}' already exists", name)
-            ));
+            return Err(crate::SeerError::DataValidation(format!(
+                "Seasonality with name '{}' already exists",
+                name
+            )));
         }
-        
+
         // Check against built-in seasonality names
         if name == "yearly" || name == "weekly" || name == "daily" {
-            return Err(crate::SeerError::DataValidation(
-                format!("Cannot use reserved seasonality name '{}'", name)
-            ));
+            return Err(crate::SeerError::DataValidation(format!(
+                "Cannot use reserved seasonality name '{}'",
+                name
+            )));
         }
-        
+
         let mut config = SeasonalityConfig::new(name, period, fourier_order);
-        
+
         if let Some(scale) = prior_scale {
             config = config.with_prior_scale(scale);
         }
-        
+
         if let Some(mode_str) = mode {
             let seasonality_mode = match mode_str.to_lowercase().as_str() {
                 "additive" => SeasonalityMode::Additive,
                 "multiplicative" => SeasonalityMode::Multiplicative,
-                _ => return Err(crate::SeerError::DataValidation(
-                    format!("Invalid seasonality mode: {}. Must be 'additive' or 'multiplicative'.", mode_str)
-                )),
+                _ => {
+                    return Err(crate::SeerError::DataValidation(format!(
+                        "Invalid seasonality mode: {}. Must be 'additive' or 'multiplicative'.",
+                        mode_str
+                    )))
+                }
             };
             config = config.with_mode(seasonality_mode);
         }
-        
+
         self.seasonalities.push(config);
         Ok(())
     }
-    
+
     /// Add custom holidays.
-    /// 
+    ///
     /// # Arguments
     /// * `name` - Name of the holiday (e.g., "christmas", "thanksgiving")
     /// * `dates` - Vector of date strings in "YYYY-MM-DD" format
@@ -851,7 +904,7 @@ impl Seer {
         mode: Option<&str>,
     ) -> Result<()> {
         let mut config = HolidayConfig::new(name, dates);
-        
+
         if let Some(lower) = lower_window {
             config.lower_window = lower;
         }
@@ -865,17 +918,20 @@ impl Seer {
             let holiday_mode = match mode_str.to_lowercase().as_str() {
                 "additive" => SeasonalityMode::Additive,
                 "multiplicative" => SeasonalityMode::Multiplicative,
-                _ => return Err(crate::SeerError::DataValidation(
-                    format!("Invalid holiday mode: {}. Must be 'additive' or 'multiplicative'.", mode_str)
-                )),
+                _ => {
+                    return Err(crate::SeerError::DataValidation(format!(
+                        "Invalid holiday mode: {}. Must be 'additive' or 'multiplicative'.",
+                        mode_str
+                    )))
+                }
             };
             config = config.with_mode(holiday_mode);
         }
-        
+
         self.holidays.push(config);
         Ok(())
     }
-    
+
     /// Add country holidays using the Python holidays package.
     /// This method stores the country name; actual holiday dates are fetched
     /// by the Python layer and passed back via add_holidays().
@@ -883,36 +939,36 @@ impl Seer {
         self.country_holidays.push(country.to_string());
         Ok(())
     }
-    
+
     /// Get reference to training history (for predict without df)
     pub fn get_history(&self) -> Option<&TimeSeriesData> {
         self.history.as_ref()
     }
-    
+
     pub fn get_params(&self) -> serde_json::Value {
         let growth_str = match self.trend {
             TrendType::Linear => "linear",
             TrendType::Logistic => "logistic",
             TrendType::Flat => "flat",
         };
-        
+
         serde_json::json!({
             "version": "0.1.0",
             "fitted": self.fitted,
-            
+
             // Trend configuration
             "growth": growth_str,
             "trend": format!("{:?}", self.trend),
             "n_changepoints": self.n_changepoints,
             "changepoint_range": self.changepoint_range,
             "changepoint_prior_scale": self.changepoint_prior_scale,
-            
+
             // Seasonality configuration
             "yearly_seasonality": self.yearly_seasonality,
             "weekly_seasonality": self.weekly_seasonality,
             "daily_seasonality": self.daily_seasonality,
             "seasonality_mode": format!("{:?}", self.seasonality_mode),
-            
+
             // Custom seasonalities
             "seasonalities": self.seasonalities.iter().map(|s| serde_json::json!({
                 "name": s.name,
@@ -921,7 +977,7 @@ impl Seer {
                 "prior_scale": s.prior_scale,
                 "mode": format!("{:?}", s.mode),
             })).collect::<Vec<_>>(),
-            
+
             // Holidays
             "holidays": self.holidays.iter().map(|h| serde_json::json!({
                 "name": h.name,
@@ -931,12 +987,12 @@ impl Seer {
                 "prior_scale": h.prior_scale,
                 "mode": format!("{:?}", h.mode),
             })).collect::<Vec<_>>(),
-            
+
             "country_holidays": self.country_holidays,
-            
+
             // Uncertainty configuration
             "interval_width": self.interval_width,
-            
+
             // Fitted parameters (only if fitted)
             "t0": self.t0.as_ref().map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string()),
             "t_scale": self.t_scale,
@@ -948,7 +1004,7 @@ impl Seer {
             "beta": self.beta,
             "gamma": self.gamma,
             "sigma_obs": self.sigma_obs,
-            
+
             // Component metadata
             "season_blocks": self.season_blocks.iter().map(|b| serde_json::json!({
                 "name": b.name,
@@ -957,7 +1013,7 @@ impl Seer {
                 "start": b.start,
                 "end": b.end,
             })).collect::<Vec<_>>(),
-            
+
             "holiday_blocks": self.holiday_blocks.iter().map(|b| serde_json::json!({
                 "name": b.name,
                 "start": b.start,
@@ -965,29 +1021,36 @@ impl Seer {
             })).collect::<Vec<_>>(),
         })
     }
-    
+
     /// Serialize model to JSON string
     pub fn to_json(&self) -> Result<String> {
         let params = self.get_params();
         serde_json::to_string_pretty(&params)
             .map_err(|e| crate::SeerError::DataValidation(format!("Serialization error: {}", e)))
     }
-    
+
     /// Deserialize model from JSON string
     pub fn from_json(json: &str) -> Result<Self> {
-        let params: serde_json::Value = serde_json::from_str(json)
-            .map_err(|e| crate::SeerError::DataValidation(format!("Deserialization error: {}", e)))?;
-        
+        let params: serde_json::Value = serde_json::from_str(json).map_err(|e| {
+            crate::SeerError::DataValidation(format!("Deserialization error: {}", e))
+        })?;
+
         // Parse trend type
-        let trend_str = params["trend"].as_str().ok_or_else(|| 
-            crate::SeerError::DataValidation("Missing trend field".to_string()))?;
+        let trend_str = params["trend"]
+            .as_str()
+            .ok_or_else(|| crate::SeerError::DataValidation("Missing trend field".to_string()))?;
         let trend = match trend_str {
             "Linear" => TrendType::Linear,
             "Logistic" => TrendType::Logistic,
             "Flat" => TrendType::Flat,
-            _ => return Err(crate::SeerError::DataValidation(format!("Invalid trend type: {}", trend_str))),
+            _ => {
+                return Err(crate::SeerError::DataValidation(format!(
+                    "Invalid trend type: {}",
+                    trend_str
+                )))
+            }
         };
-        
+
         // Parse seasonality mode
         let seasonality_mode_str = params["seasonality_mode"].as_str().unwrap_or("Additive");
         let seasonality_mode = match seasonality_mode_str {
@@ -995,7 +1058,7 @@ impl Seer {
             "Multiplicative" => SeasonalityMode::Multiplicative,
             _ => SeasonalityMode::Additive,
         };
-        
+
         // Parse custom seasonalities
         let mut seasonalities = Vec::new();
         if let Some(seas_array) = params["seasonalities"].as_array() {
@@ -1006,7 +1069,7 @@ impl Seer {
                     "Multiplicative" => SeasonalityMode::Multiplicative,
                     _ => SeasonalityMode::Additive,
                 };
-                
+
                 seasonalities.push(SeasonalityConfig {
                     name: s["name"].as_str().unwrap_or("").to_string(),
                     period: s["period"].as_f64().unwrap_or(1.0),
@@ -1016,7 +1079,7 @@ impl Seer {
                 });
             }
         }
-        
+
         // Parse holidays
         let mut holidays = Vec::new();
         if let Some(hol_array) = params["holidays"].as_array() {
@@ -1027,11 +1090,16 @@ impl Seer {
                     "Multiplicative" => SeasonalityMode::Multiplicative,
                     _ => SeasonalityMode::Additive,
                 };
-                
-                let dates: Vec<String> = h["dates"].as_array()
-                    .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+
+                let dates: Vec<String> = h["dates"]
+                    .as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
                     .unwrap_or_default();
-                
+
                 holidays.push(HolidayConfig {
                     name: h["name"].as_str().unwrap_or("").to_string(),
                     dates,
@@ -1042,7 +1110,7 @@ impl Seer {
                 });
             }
         }
-        
+
         // Parse season blocks
         let mut season_blocks = Vec::new();
         if let Some(blocks_array) = params["season_blocks"].as_array() {
@@ -1056,7 +1124,7 @@ impl Seer {
                 });
             }
         }
-        
+
         // Parse holiday blocks
         let mut holiday_blocks = Vec::new();
         if let Some(blocks_array) = params["holiday_blocks"].as_array() {
@@ -1068,28 +1136,37 @@ impl Seer {
                 });
             }
         }
-        
+
         // Extract arrays
-        let t_change: Vec<f64> = params["t_change"].as_array()
+        let t_change: Vec<f64> = params["t_change"]
+            .as_array()
             .map(|arr| arr.iter().filter_map(|v| v.as_f64()).collect())
             .unwrap_or_default();
-        
-        let delta: Vec<f64> = params["delta"].as_array()
+
+        let delta: Vec<f64> = params["delta"]
+            .as_array()
             .map(|arr| arr.iter().filter_map(|v| v.as_f64()).collect())
             .unwrap_or_default();
-        
-        let beta: Vec<f64> = params["beta"].as_array()
+
+        let beta: Vec<f64> = params["beta"]
+            .as_array()
             .map(|arr| arr.iter().filter_map(|v| v.as_f64()).collect())
             .unwrap_or_default();
-        
-        let gamma: Vec<f64> = params["gamma"].as_array()
+
+        let gamma: Vec<f64> = params["gamma"]
+            .as_array()
             .map(|arr| arr.iter().filter_map(|v| v.as_f64()).collect())
             .unwrap_or_default();
-        
-        let country_holidays: Vec<String> = params["country_holidays"].as_array()
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+
+        let country_holidays: Vec<String> = params["country_holidays"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
             .unwrap_or_default();
-        
+
         Ok(Self {
             trend,
             n_changepoints: params["n_changepoints"].as_u64().unwrap_or(25) as usize,

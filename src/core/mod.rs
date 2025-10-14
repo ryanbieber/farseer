@@ -1,9 +1,9 @@
-pub mod model;
+pub mod cmdstan_optimizer;
 pub mod data;
-pub mod trend;
+pub mod model;
 pub mod seasonality;
-pub mod stan;  // Stan/BridgeStan integration
-pub mod cmdstan_optimizer;  // LBFGS optimizer using argmin-rs
+pub mod stan; // Stan/BridgeStan integration
+pub mod trend; // LBFGS optimizer using argmin-rs
 
+pub use data::{ForecastResult, TimeSeriesData};
 pub use model::{Seer, TrendType};
-pub use data::{TimeSeriesData, ForecastResult};

@@ -1,11 +1,11 @@
 // src/lib.rs - Full structure with Python bindings
 
+use numpy::ToPyArray;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use numpy::ToPyArray;
 
 pub mod core;
-pub use core::{Seer as CoreSeer, TimeSeriesData, ForecastResult, TrendType};
+pub use core::{ForecastResult, Seer as CoreSeer, TimeSeriesData, TrendType};
 
 pub type Result<T> = std::result::Result<T, SeerError>;
 
@@ -13,13 +13,13 @@ pub type Result<T> = std::result::Result<T, SeerError>;
 pub enum SeerError {
     #[error("Data validation error: {0}")]
     DataValidation(String),
-    
+
     #[error("Prediction error: {0}")]
     Prediction(String),
-    
+
     #[error("Stan model error: {0}")]
     StanError(String),
-    
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -30,13 +30,13 @@ fn convert_ds_to_strings(ds_series: Bound<'_, PyAny>) -> PyResult<Vec<String>> {
         // It's a datetime column
         // Check if first value has time component
         let first_val = ds_series.call_method1("iloc", (0,))?;
-        
+
         let dt_accessor = ds_series.getattr("dt")?;
         let format_str = if first_val.hasattr("hour")? {
             let hour: i32 = first_val.getattr("hour")?.extract()?;
             let minute: i32 = first_val.getattr("minute")?.extract()?;
             let second: i32 = first_val.getattr("second")?.extract()?;
-            
+
             if hour == 0 && minute == 0 && second == 0 {
                 "%Y-%m-%d"
             } else {
@@ -45,7 +45,7 @@ fn convert_ds_to_strings(ds_series: Bound<'_, PyAny>) -> PyResult<Vec<String>> {
         } else {
             "%Y-%m-%d"
         };
-        
+
         dt_accessor
             .call_method1("strftime", (format_str,))?
             .call_method0("tolist")?
@@ -68,7 +68,7 @@ struct Seer {
 #[pymethods]
 impl Seer {
     #[new]
-    #[allow(unused_variables)]  // Prophet compatibility parameters
+    #[allow(unused_variables)] // Prophet compatibility parameters
     #[pyo3(signature = (
         growth="linear",
         n_changepoints=25,
@@ -92,18 +92,20 @@ impl Seer {
         daily_seasonality: bool,
         seasonality_mode: &str,
         interval_width: f64,
-        uncertainty_samples: usize,  // Accepted but not used (for Prophet compatibility)
-        changepoints: Option<Vec<String>>,  // Accepted but not used (for Prophet compatibility)
+        uncertainty_samples: usize, // Accepted but not used (for Prophet compatibility)
+        changepoints: Option<Vec<String>>, // Accepted but not used (for Prophet compatibility)
     ) -> PyResult<Self> {
         let trend = match growth {
             "linear" => TrendType::Linear,
             "logistic" => TrendType::Logistic,
             "flat" => TrendType::Flat,
-            _ => return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "growth must be 'linear', 'logistic', or 'flat'"
-            )),
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "growth must be 'linear', 'logistic', or 'flat'",
+                ))
+            }
         };
-        
+
         let mut seer = CoreSeer::new()
             .with_trend(trend)
             .with_changepoints(n_changepoints)
@@ -113,81 +115,88 @@ impl Seer {
             .with_seasonality_mode(seasonality_mode)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?
             .with_interval_width(interval_width);
-        
+
         // Set seasonality based on explicit parameters
         if yearly_seasonality {
             seer = seer.with_yearly_seasonality();
         } else {
             seer = seer.without_yearly_seasonality();
         }
-        
+
         if weekly_seasonality {
             seer = seer.with_weekly_seasonality();
         } else {
             seer = seer.without_weekly_seasonality();
         }
-        
+
         if daily_seasonality {
             seer = seer.with_daily_seasonality();
         } else {
             seer = seer.without_daily_seasonality();
         }
-        
+
         Ok(Seer { inner: seer })
     }
-    
+
     /// Fit the model to historical data
     fn fit(&mut self, py: Python, df: &Bound<'_, PyAny>) -> PyResult<()> {
         // Validate required columns exist
-        let columns = df.getattr("columns")?.call_method0("tolist")?.extract::<Vec<String>>()?;
+        let columns = df
+            .getattr("columns")?
+            .call_method0("tolist")?
+            .extract::<Vec<String>>()?;
         if !columns.contains(&"ds".to_string()) || !columns.contains(&"y".to_string()) {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Dataframe must have 'ds' and 'y' columns"
+                "Dataframe must have 'ds' and 'y' columns",
             ));
         }
-        
+
         // Filter out rows with NaN values in 'y' column (Prophet compatibility)
         let df_copy = df.call_method0("copy")?;
         let y_notna = df_copy.getattr("y")?.call_method0("notna")?;
         let df_clean = df_copy.call_method1("__getitem__", (y_notna,))?;
-        
+
         // Validate minimum data points (Prophet compatibility: requires at least 2 points)
         let n_rows: usize = df_clean.getattr("shape")?.get_item(0)?.extract()?;
         if n_rows < 2 {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Dataframe has less than 2 non-NaN rows. Found {} rows.", n_rows)
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Dataframe has less than 2 non-NaN rows. Found {} rows.",
+                n_rows
+            )));
         }
-        
+
         // Convert ds column to strings, handling datetime objects
         let ds_series = df_clean.getattr("ds")?;
         let ds = convert_ds_to_strings(ds_series)?;
-        
+
         let y: Vec<f64> = df_clean.getattr("y")?.call_method0("tolist")?.extract()?;
 
-        
         let cap = if df_clean.hasattr("cap")? {
             Some(df_clean.getattr("cap")?.call_method0("tolist")?.extract()?)
         } else {
             None
         };
-        
+
         let weights = if df_clean.hasattr("weight")? {
-            Some(df_clean.getattr("weight")?.call_method0("tolist")?.extract()?)
+            Some(
+                df_clean
+                    .getattr("weight")?
+                    .call_method0("tolist")?
+                    .extract()?,
+            )
         } else {
             None
         };
-        
+
         let data = TimeSeriesData::new(ds, y, cap, weights)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-        
-        py.allow_threads(|| {
-            self.inner.fit(&data)
-        }).map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-        
+
+        py.allow_threads(|| self.inner.fit(&data))
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
         Ok(())
     }
-    
+
     /// Make predictions (df=None uses training data like Prophet)
     #[pyo3(signature = (df=None))]
     fn predict(&self, py: Python, df: Option<Bound<'_, PyAny>>) -> PyResult<PyObject> {
@@ -196,7 +205,7 @@ impl Seer {
             // Convert ds column to strings, handling datetime objects
             let ds_series = df_val.getattr("ds")?;
             let ds = convert_ds_to_strings(ds_series)?;
-            
+
             // Extract cap if it exists in the dataframe (for logistic growth)
             let cap = if df_val.hasattr("cap")? {
                 let cap_series = df_val.getattr("cap")?;
@@ -205,7 +214,7 @@ impl Seer {
             } else {
                 None
             };
-            
+
             (ds, cap)
         } else {
             // Use history if df is None
@@ -215,18 +224,18 @@ impl Seer {
                 (ds, cap)
             } else {
                 return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "Model must be fitted before calling predict() without a dataframe"
+                    "Model must be fitted before calling predict() without a dataframe",
                 ));
             }
         };
-        
-        let forecast = py.allow_threads(|| {
-            self.inner.predict_with_cap(&ds, cap)
-        }).map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-        
+
+        let forecast = py
+            .allow_threads(|| self.inner.predict_with_cap(&ds, cap))
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
         let pd = py.import_bound("pandas")?;
         let dict = PyDict::new_bound(py);
-        
+
         // Add columns in Prophet's order
         dict.set_item("ds", forecast.ds)?;
         dict.set_item("trend", forecast.trend.to_pyarray_bound(py))?;
@@ -234,29 +243,47 @@ impl Seer {
         dict.set_item("yhat_upper", forecast.yhat_upper.to_pyarray_bound(py))?;
         dict.set_item("trend_lower", forecast.trend_lower.to_pyarray_bound(py))?;
         dict.set_item("trend_upper", forecast.trend_upper.to_pyarray_bound(py))?;
-        dict.set_item("additive_terms", forecast.additive_terms.to_pyarray_bound(py))?;
-        dict.set_item("additive_terms_lower", forecast.additive_terms_lower.to_pyarray_bound(py))?;
-        dict.set_item("additive_terms_upper", forecast.additive_terms_upper.to_pyarray_bound(py))?;
-        
+        dict.set_item(
+            "additive_terms",
+            forecast.additive_terms.to_pyarray_bound(py),
+        )?;
+        dict.set_item(
+            "additive_terms_lower",
+            forecast.additive_terms_lower.to_pyarray_bound(py),
+        )?;
+        dict.set_item(
+            "additive_terms_upper",
+            forecast.additive_terms_upper.to_pyarray_bound(py),
+        )?;
+
         // Always add weekly component and its bounds (zeros if not enabled)
         dict.set_item("weekly", forecast.weekly.to_pyarray_bound(py))?;
         dict.set_item("weekly_lower", forecast.weekly_lower.to_pyarray_bound(py))?;
         dict.set_item("weekly_upper", forecast.weekly_upper.to_pyarray_bound(py))?;
-        
+
         // Always add yearly component and its bounds (zeros if not enabled)
         dict.set_item("yearly", forecast.yearly.to_pyarray_bound(py))?;
         dict.set_item("yearly_lower", forecast.yearly_lower.to_pyarray_bound(py))?;
         dict.set_item("yearly_upper", forecast.yearly_upper.to_pyarray_bound(py))?;
-        
-        dict.set_item("multiplicative_terms", forecast.multiplicative_terms.to_pyarray_bound(py))?;
-        dict.set_item("multiplicative_terms_lower", forecast.multiplicative_terms_lower.to_pyarray_bound(py))?;
-        dict.set_item("multiplicative_terms_upper", forecast.multiplicative_terms_upper.to_pyarray_bound(py))?;
+
+        dict.set_item(
+            "multiplicative_terms",
+            forecast.multiplicative_terms.to_pyarray_bound(py),
+        )?;
+        dict.set_item(
+            "multiplicative_terms_lower",
+            forecast.multiplicative_terms_lower.to_pyarray_bound(py),
+        )?;
+        dict.set_item(
+            "multiplicative_terms_upper",
+            forecast.multiplicative_terms_upper.to_pyarray_bound(py),
+        )?;
         dict.set_item("yhat", forecast.yhat.to_pyarray_bound(py))?;
-        
+
         let df = pd.call_method1("DataFrame", (dict,))?;
         Ok(df.into())
     }
-    
+
     /// Generate future dataframe
     #[pyo3(signature = (periods, freq=None, include_history=None))]
     fn make_future_dataframe(
@@ -268,25 +295,27 @@ impl Seer {
     ) -> PyResult<PyObject> {
         let freq = freq.unwrap_or("D");
         let include_history = include_history.unwrap_or(true);
-        
-        let dates = self.inner.make_future_dates(periods, freq, include_history)
+
+        let dates = self
+            .inner
+            .make_future_dates(periods, freq, include_history)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-        
+
         let pd = py.import_bound("pandas")?;
-        
+
         // Convert date strings to pandas datetime objects
         // Use format='mixed' to handle both daily and hourly formats
         let kwargs = PyDict::new_bound(py);
         kwargs.set_item("format", "mixed")?;
         let dates_converted = pd.call_method("to_datetime", (dates,), Some(&kwargs))?;
-        
+
         let dict = PyDict::new_bound(py);
         dict.set_item("ds", dates_converted)?;
-        
+
         let df = pd.call_method1("DataFrame", (dict,))?;
         Ok(df.into())
     }
-    
+
     /// Add custom seasonality
     #[pyo3(signature = (name, period, fourier_order, prior_scale=None, mode=None))]
     fn add_seasonality(
@@ -297,11 +326,12 @@ impl Seer {
         prior_scale: Option<f64>,
         mode: Option<&str>,
     ) -> PyResult<Py<Self>> {
-        slf.inner.add_seasonality(name, period, fourier_order, prior_scale, mode)
+        slf.inner
+            .add_seasonality(name, period, fourier_order, prior_scale, mode)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(slf.into())
     }
-    
+
     /// Add regressor (Prophet compatibility - not fully implemented)
     #[pyo3(signature = (name, prior_scale=None, standardize=None, mode=None))]
     fn add_regressor(
@@ -316,7 +346,7 @@ impl Seer {
         let _ = (prior_scale, standardize, mode); // Suppress unused warnings
         Ok(slf.into())
     }
-    
+
     /// Add custom holidays
     #[pyo3(signature = (name, dates, lower_window=None, upper_window=None, prior_scale=None, mode=None))]
     fn add_holidays(
@@ -328,18 +358,20 @@ impl Seer {
         prior_scale: Option<f64>,
         mode: Option<&str>,
     ) -> PyResult<Py<Self>> {
-        slf.inner.add_holidays(name, dates, lower_window, upper_window, prior_scale, mode)
+        slf.inner
+            .add_holidays(name, dates, lower_window, upper_window, prior_scale, mode)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(slf.into())
     }
-    
+
     /// Add country holidays
     fn add_country_holidays(mut slf: PyRefMut<'_, Self>, country_name: &str) -> PyResult<Py<Self>> {
-        slf.inner.add_country_holidays(country_name)
+        slf.inner
+            .add_country_holidays(country_name)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(slf.into())
     }
-    
+
     /// Get model parameters
     fn params(&self, py: Python) -> PyResult<PyObject> {
         let params = self.inner.get_params();
@@ -348,15 +380,17 @@ impl Seer {
         let json = py.import_bound("json")?;
         Ok(json.call_method1("loads", (json_str,))?.into())
     }
-    
+
     /// Save model to file
     fn save(&self, path: &str) -> PyResult<()> {
-        let json_str = self.inner.to_json()
+        let json_str = self
+            .inner
+            .to_json()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         std::fs::write(path, json_str)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
-    
+
     /// Load model from file
     #[staticmethod]
     fn load(path: &str) -> PyResult<Self> {
@@ -366,13 +400,14 @@ impl Seer {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(Self { inner })
     }
-    
+
     /// Serialize model to JSON string
     fn to_json(&self) -> PyResult<String> {
-        self.inner.to_json()
+        self.inner
+            .to_json()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
     }
-    
+
     /// Deserialize model from JSON string
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
@@ -380,10 +415,13 @@ impl Seer {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(Seer { inner })
     }
-    
+
     fn __repr__(&self) -> String {
-        format!("Seer(growth={:?}, n_changepoints={})", 
-                self.inner.trend_type(), self.inner.n_changepoints())
+        format!(
+            "Seer(growth={:?}, n_changepoints={})",
+            self.inner.trend_type(),
+            self.inner.n_changepoints()
+        )
     }
 }
 
@@ -394,6 +432,3 @@ fn _seer(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }
-
-    
-    

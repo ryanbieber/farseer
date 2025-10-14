@@ -1,10 +1,9 @@
 // CmdStan Integration Module
 // This module handles Stan model optimization using CmdStan
 
-use serde_json::json;
 use crate::Result;
+use serde_json::json;
 use std::path::PathBuf;
-
 
 /// Stan model wrapper for Prophet-style forecasting
 pub struct StanModel {
@@ -16,7 +15,7 @@ impl StanModel {
     pub fn new() -> Result<Self> {
         Self::new_with_threads(None)
     }
-    
+
     /// Create a new StanModel with specified number of threads
     pub fn new_with_threads(_num_threads: Option<usize>) -> Result<Self> {
         // Try multiple paths to find the prophet model binary
@@ -32,7 +31,7 @@ impl StanModel {
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("stan/prophet_model")),
         ];
-        
+
         // Find the first path that exists
         let model_path = possible_paths
             .iter()
@@ -47,7 +46,7 @@ impl StanModel {
                 )
             ))?
             .clone();
-        
+
         Ok(Self { model_path })
     }
 
@@ -67,12 +66,21 @@ impl StanModel {
         weights: Option<&[f64]>,
     ) -> Result<StanOptimizationResult> {
         self.optimize_with_config(
-            t, y, cap, x, sigmas, tau, trend_indicator, s_a, s_m, t_change,
+            t,
+            y,
+            cap,
+            x,
+            sigmas,
+            tau,
+            trend_indicator,
+            s_a,
+            s_m,
+            t_change,
             weights,
-            OptimizationConfig::default()
+            OptimizationConfig::default(),
         )
     }
-    
+
     /// Optimize the Stan model with custom configuration
     /// Now delegates to CmdStan optimizer (110x faster than BridgeStan)
     pub fn optimize_with_config(
@@ -92,10 +100,20 @@ impl StanModel {
     ) -> Result<StanOptimizationResult> {
         // Delegate to CmdStan optimizer
         self.optimize_with_cmdstan(
-            t, y, cap, x, sigmas, tau, trend_indicator, s_a, s_m, t_change, weights
+            t,
+            y,
+            cap,
+            x,
+            sigmas,
+            tau,
+            trend_indicator,
+            s_a,
+            s_m,
+            t_change,
+            weights,
         )
     }
-    
+
     /// Optimize using CmdStan (110x faster than BridgeStan)
     /// This shells out to the compiled Prophet Stan binary
     pub fn optimize_with_cmdstan(
@@ -113,11 +131,11 @@ impl StanModel {
         weights: Option<&[f64]>,
     ) -> Result<StanOptimizationResult> {
         use crate::core::cmdstan_optimizer::CmdStanOptimizer;
-        
+
         let n = t.len();
         let k = x.first().map(|v| v.len()).unwrap_or(0);
         let s = t_change.len();
-        
+
         // Calculate grainsize
         let num_threads = std::thread::available_parallelism()
             .map(|n| n.get())
@@ -128,12 +146,10 @@ impl StanModel {
             let calculated = n / (num_threads * 4).max(1);
             calculated.clamp(min_grainsize, max_grainsize).max(1)
         };
-        
+
         // Use provided weights or default to equal weights
-        let weights_vec = weights
-            .map(|w| w.to_vec())
-            .unwrap_or_else(|| vec![1.0; n]);
-        
+        let weights_vec = weights.map(|w| w.to_vec()).unwrap_or_else(|| vec![1.0; n]);
+
         // Prepare data in JSON format matching Stan's data block
         let data = json!({
             "T": n,
@@ -152,7 +168,7 @@ impl StanModel {
             "weights": weights_vec,
             "grainsize": grainsize,
         });
-        
+
         // Initialize parameters using Prophet's approach
         let y_mean = y.iter().sum::<f64>() / y.len() as f64;
         let y_std = (y.iter().map(|v| (v - y_mean).powi(2)).sum::<f64>() / y.len() as f64).sqrt();
@@ -161,7 +177,7 @@ impl StanModel {
         } else {
             vec![0.0; y.len()]
         };
-        
+
         let (k_init, m_init) = if trend_indicator == 1 {
             let _cap_mean = cap.iter().sum::<f64>() / cap.len() as f64;
             let cap_scaled: Vec<f64> = if y_std > 1e-9 {
@@ -175,7 +191,7 @@ impl StanModel {
         } else {
             crate::core::trend::linear_growth_init(t, &y_scaled)
         };
-        
+
         let init = json!({
             "k": k_init,
             "m": m_init,
@@ -183,16 +199,16 @@ impl StanModel {
             "beta": vec![0.0; k],
             "sigma_obs": 0.5,
         });
-        
+
         // Create CmdStan optimizer
-        let cmdstan_path = std::env::var("SEER_CMDSTAN_PATH")
-            .unwrap_or_else(|_| "stan/prophet_model".to_string());
-        
+        let cmdstan_path =
+            std::env::var("SEER_CMDSTAN_PATH").unwrap_or_else(|_| "stan/prophet_model".to_string());
+
         let optimizer = CmdStanOptimizer::with_model_path(&cmdstan_path);
-        
+
         // Run optimization
         let result = optimizer.optimize(&data, &init)?;
-        
+
         Ok(StanOptimizationResult {
             k: result.k,
             m: result.m,
@@ -232,36 +248,39 @@ impl Default for OptimizationConfig {
 
 /// Result from Stan optimization
 pub struct StanOptimizationResult {
-    pub k: f64,           // Base trend growth rate
-    pub m: f64,           // Trend offset
-    pub delta: Vec<f64>,  // Trend rate adjustments at changepoints
-    pub sigma_obs: f64,   // Observation noise
-    pub beta: Vec<f64>,   // Seasonality/regressor coefficients
+    pub k: f64,          // Base trend growth rate
+    pub m: f64,          // Trend offset
+    pub delta: Vec<f64>, // Trend rate adjustments at changepoints
+    pub sigma_obs: f64,  // Observation noise
+    pub beta: Vec<f64>,  // Seasonality/regressor coefficients
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
-    #[ignore]  // Ignore by default as it requires Stan compilation
+    #[ignore] // Ignore by default as it requires Stan compilation
     fn test_stan_model_compilation() {
         let model = StanModel::new();
         assert!(model.is_ok(), "Stan model should compile successfully");
     }
-    
+
     #[test]
     #[ignore]
     fn test_stan_model_with_threads() {
         let model = StanModel::new_with_threads(Some(4));
-        assert!(model.is_ok(), "Stan model should compile with threading support");
+        assert!(
+            model.is_ok(),
+            "Stan model should compile with threading support"
+        );
     }
-    
+
     #[test]
     #[ignore]
     fn test_optimization_with_config() {
         let model = StanModel::new_with_threads(Some(4)).unwrap();
-        
+
         let t = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         let y = vec![10.0, 12.0, 14.0, 16.0, 18.0];
         let cap = vec![100.0; 5];
@@ -270,16 +289,16 @@ mod tests {
         let s_a = vec![1.0];
         let s_m = vec![0.0];
         let t_change = vec![];
-        
+
         let config = OptimizationConfig {
             num_threads: 4,
             ..Default::default()
         };
-        
+
         let result = model.optimize_with_config(
-            &t, &y, &cap, &x, &sigmas, 0.05, 0, &s_a, &s_m, &t_change, None, config
+            &t, &y, &cap, &x, &sigmas, 0.05, 0, &s_a, &s_m, &t_change, None, config,
         );
-        
+
         assert!(result.is_ok(), "Optimization should succeed");
     }
 }
