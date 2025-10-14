@@ -107,7 +107,7 @@ Each Release:
   ☐ Update version in pyproject.toml
   ☐ Update version in Cargo.toml
   ☐ Commit changes
-  ☐ Create and push tag
+  ☐ Create and push tag (git tag v0.1.0 && git push origin master --tags)
   ☐ Create GitHub Release
   ☐ Monitor GitHub Actions
   ☐ Verify on PyPI
