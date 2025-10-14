@@ -47,7 +47,7 @@ def subdaily_univariate_ts():
     """Generate subdaily time series data"""
     np.random.seed(42)
     n = 24 * 30  # 30 days of hourly data
-    dates = pd.date_range('2017-01-01', periods=n, freq='H')
+    dates = pd.date_range('2017-01-01', periods=n, freq='h')
     
     # Daily and hourly patterns
     hour_of_day = np.arange(n) % 24

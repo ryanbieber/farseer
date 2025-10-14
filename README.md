@@ -674,14 +674,26 @@ df = pd.DataFrame({
 
 ### Output
 
-Predictions are returned as a Polars DataFrame with:
+Predictions are returned as a Polars DataFrame with columns matching Facebook Prophet's output schema:
 - **`ds`**: Dates
-- **`yhat`**: Predicted values
-- **`yhat_lower`**: Lower uncertainty bound
-- **`yhat_upper`**: Upper uncertainty bound  
 - **`trend`**: Trend component
-- **`yearly`**: Yearly seasonality (if enabled)
-- **`weekly`**: Weekly seasonality (if enabled)
+- **`yhat_lower`**: Lower uncertainty bound for predictions
+- **`yhat_upper`**: Upper uncertainty bound for predictions
+- **`trend_lower`**: Lower uncertainty bound for trend
+- **`trend_upper`**: Upper uncertainty bound for trend
+- **`additive_terms`**: Sum of additive seasonal components
+- **`additive_terms_lower`**: Lower uncertainty bound for additive terms
+- **`additive_terms_upper`**: Upper uncertainty bound for additive terms
+- **`weekly`**: Weekly seasonality component (zeros if disabled)
+- **`weekly_lower`**: Lower uncertainty bound for weekly seasonality
+- **`weekly_upper`**: Upper uncertainty bound for weekly seasonality
+- **`yearly`**: Yearly seasonality component (zeros if disabled)
+- **`yearly_lower`**: Lower uncertainty bound for yearly seasonality
+- **`yearly_upper`**: Upper uncertainty bound for yearly seasonality
+- **`multiplicative_terms`**: Sum of multiplicative seasonal components
+- **`multiplicative_terms_lower`**: Lower uncertainty bound for multiplicative terms
+- **`multiplicative_terms_upper`**: Upper uncertainty bound for multiplicative terms
+- **`yhat`**: Final predicted values
 - Additional columns for custom seasonalities and holidays
 
 ## Project Structure

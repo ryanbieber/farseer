@@ -227,18 +227,31 @@ impl Seer {
         let pd = py.import_bound("pandas")?;
         let dict = PyDict::new_bound(py);
         
+        // Add columns in Prophet's order
         dict.set_item("ds", forecast.ds)?;
-        dict.set_item("yhat", forecast.yhat.to_pyarray_bound(py))?;
+        dict.set_item("trend", forecast.trend.to_pyarray_bound(py))?;
         dict.set_item("yhat_lower", forecast.yhat_lower.to_pyarray_bound(py))?;
         dict.set_item("yhat_upper", forecast.yhat_upper.to_pyarray_bound(py))?;
-        dict.set_item("trend", forecast.trend.to_pyarray_bound(py))?;
+        dict.set_item("trend_lower", forecast.trend_lower.to_pyarray_bound(py))?;
+        dict.set_item("trend_upper", forecast.trend_upper.to_pyarray_bound(py))?;
+        dict.set_item("additive_terms", forecast.additive_terms.to_pyarray_bound(py))?;
+        dict.set_item("additive_terms_lower", forecast.additive_terms_lower.to_pyarray_bound(py))?;
+        dict.set_item("additive_terms_upper", forecast.additive_terms_upper.to_pyarray_bound(py))?;
         
-        if let Some(yearly) = forecast.yearly {
-            dict.set_item("yearly", yearly.to_pyarray_bound(py))?;
-        }
-        if let Some(weekly) = forecast.weekly {
-            dict.set_item("weekly", weekly.to_pyarray_bound(py))?;
-        }
+        // Always add weekly component and its bounds (zeros if not enabled)
+        dict.set_item("weekly", forecast.weekly.to_pyarray_bound(py))?;
+        dict.set_item("weekly_lower", forecast.weekly_lower.to_pyarray_bound(py))?;
+        dict.set_item("weekly_upper", forecast.weekly_upper.to_pyarray_bound(py))?;
+        
+        // Always add yearly component and its bounds (zeros if not enabled)
+        dict.set_item("yearly", forecast.yearly.to_pyarray_bound(py))?;
+        dict.set_item("yearly_lower", forecast.yearly_lower.to_pyarray_bound(py))?;
+        dict.set_item("yearly_upper", forecast.yearly_upper.to_pyarray_bound(py))?;
+        
+        dict.set_item("multiplicative_terms", forecast.multiplicative_terms.to_pyarray_bound(py))?;
+        dict.set_item("multiplicative_terms_lower", forecast.multiplicative_terms_lower.to_pyarray_bound(py))?;
+        dict.set_item("multiplicative_terms_upper", forecast.multiplicative_terms_upper.to_pyarray_bound(py))?;
+        dict.set_item("yhat", forecast.yhat.to_pyarray_bound(py))?;
         
         let df = pd.call_method1("DataFrame", (dict,))?;
         Ok(df.into())

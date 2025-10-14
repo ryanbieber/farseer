@@ -53,12 +53,24 @@ impl TimeSeriesData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ForecastResult {
     pub ds: Vec<String>,
-    pub yhat: Vec<f64>,
+    pub trend: Vec<f64>,
     pub yhat_lower: Vec<f64>,
     pub yhat_upper: Vec<f64>,
-    pub trend: Vec<f64>,
-    pub yearly: Option<Vec<f64>>,
-    pub weekly: Option<Vec<f64>>,
+    pub trend_lower: Vec<f64>,
+    pub trend_upper: Vec<f64>,
+    pub additive_terms: Vec<f64>,
+    pub additive_terms_lower: Vec<f64>,
+    pub additive_terms_upper: Vec<f64>,
+    pub weekly: Vec<f64>,
+    pub weekly_lower: Vec<f64>,
+    pub weekly_upper: Vec<f64>,
+    pub yearly: Vec<f64>,
+    pub yearly_lower: Vec<f64>,
+    pub yearly_upper: Vec<f64>,
+    pub multiplicative_terms: Vec<f64>,
+    pub multiplicative_terms_lower: Vec<f64>,
+    pub multiplicative_terms_upper: Vec<f64>,
+    pub yhat: Vec<f64>,
 }
 
 #[cfg(test)]

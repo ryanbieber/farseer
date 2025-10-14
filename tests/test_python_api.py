@@ -933,7 +933,7 @@ class TestRealWorldScenarios:
     def test_hourly_energy_consumption(self):
         """Test hourly energy consumption forecasting"""
         n_hours = 24 * 30  # 30 days
-        dates = pd.date_range('2020-01-01', periods=n_hours, freq='H')
+        dates = pd.date_range('2020-01-01', periods=n_hours, freq='h')
         
         # Daily pattern + trend
         hour_of_day = np.arange(n_hours) % 24
@@ -952,7 +952,7 @@ class TestRealWorldScenarios:
         model.fit(df)
         
         # Forecast next 24 hours
-        future = model.make_future_dataframe(periods=24, freq='H')
+        future = model.make_future_dataframe(periods=24, freq='h')
         forecast = model.predict(future)
         
         assert len(forecast) == n_hours + 24

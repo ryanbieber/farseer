@@ -202,14 +202,26 @@ class Seer(_Seer):
         Returns
         -------
         forecast : polars.DataFrame
-            DataFrame with predictions including:
+            DataFrame with predictions. Output schema matches Facebook Prophet:
             - ds: dates
-            - yhat: predicted values
-            - yhat_lower: lower uncertainty bound
-            - yhat_upper: upper uncertainty bound
             - trend: trend component
-            - yearly: yearly seasonality (if enabled)
-            - weekly: weekly seasonality (if enabled)
+            - yhat_lower: lower uncertainty bound for predictions
+            - yhat_upper: upper uncertainty bound for predictions
+            - trend_lower: lower uncertainty bound for trend
+            - trend_upper: upper uncertainty bound for trend
+            - additive_terms: sum of additive seasonal components
+            - additive_terms_lower: lower uncertainty bound for additive terms
+            - additive_terms_upper: upper uncertainty bound for additive terms
+            - weekly: weekly seasonality (zeros if disabled)
+            - weekly_lower: lower uncertainty bound for weekly
+            - weekly_upper: upper uncertainty bound for weekly
+            - yearly: yearly seasonality (zeros if disabled)
+            - yearly_lower: lower uncertainty bound for yearly
+            - yearly_upper: upper uncertainty bound for yearly
+            - multiplicative_terms: sum of multiplicative seasonal components
+            - multiplicative_terms_lower: lower uncertainty bound for multiplicative terms
+            - multiplicative_terms_upper: upper uncertainty bound for multiplicative terms
+            - yhat: final predicted values
         """
         if df is None:
             # Call Rust predict with None

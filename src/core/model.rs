@@ -667,37 +667,79 @@ impl Seer {
         let margin = z_score * self.sigma_obs * self.y_scale;
         let yhat_lower: Vec<f64> = yhat.iter().map(|&y| y - margin).collect();
         let yhat_upper: Vec<f64> = yhat.iter().map(|&y| y + margin).collect();
+        
+        // Trend uncertainty intervals (same margin as yhat for now)
+        let trend_lower: Vec<f64> = trend.iter().map(|&t| t - margin).collect();
+        let trend_upper: Vec<f64> = trend.iter().map(|&t| t + margin).collect();
 
         // Unscale seasonal components
         // For multiplicative seasonality, components should remain as fractional values (not scaled)
         // For additive seasonality, components should be scaled to original units
-        let yearly_unscaled = yearly_comp.map(|v| {
+        // Always include yearly and weekly columns (as zeros if not enabled) for Prophet compatibility
+        let yearly_unscaled = if let Some(v) = yearly_comp.as_ref() {
             if yearly_is_multiplicative {
                 // Multiplicative: keep as fractional values (e.g., 0.2 = 20% increase)
-                v
+                v.clone()
             } else {
                 // Additive: scale to original units
                 v.iter().map(|&x| x * self.y_scale).collect()
             }
-        });
-        let weekly_unscaled = weekly_comp.map(|v| {
+        } else {
+            // No yearly component - return zeros for Prophet compatibility
+            vec![0.0; ds.len()]
+        };
+        
+        let weekly_unscaled = if let Some(v) = weekly_comp.as_ref() {
             if weekly_is_multiplicative {
                 // Multiplicative: keep as fractional values
-                v
+                v.clone()
             } else {
                 // Additive: scale to original units
                 v.iter().map(|&x| x * self.y_scale).collect()
             }
-        });
+        } else {
+            // No weekly component - return zeros for Prophet compatibility
+            vec![0.0; ds.len()]
+        };
+        
+        // Compute uncertainty intervals for yearly component
+        let yearly_lower: Vec<f64> = yearly_unscaled.iter().map(|&y| y - margin).collect();
+        let yearly_upper: Vec<f64> = yearly_unscaled.iter().map(|&y| y + margin).collect();
+        
+        // Compute uncertainty intervals for weekly component
+        let weekly_lower: Vec<f64> = weekly_unscaled.iter().map(|&w| w - margin).collect();
+        let weekly_upper: Vec<f64> = weekly_unscaled.iter().map(|&w| w + margin).collect();
+        
+        // Compute additive and multiplicative terms
+        let additive_terms: Vec<f64> = seasonal_additive.iter().map(|&v| v * self.y_scale).collect();
+        let multiplicative_terms: Vec<f64> = seasonal_multiplicative.clone();
+        
+        // Uncertainty intervals for additive and multiplicative terms
+        let additive_terms_lower: Vec<f64> = additive_terms.iter().map(|&v| v - margin).collect();
+        let additive_terms_upper: Vec<f64> = additive_terms.iter().map(|&v| v + margin).collect();
+        let multiplicative_terms_lower: Vec<f64> = multiplicative_terms.iter().map(|&v| v - margin).collect();
+        let multiplicative_terms_upper: Vec<f64> = multiplicative_terms.iter().map(|&v| v + margin).collect();
 
         Ok(ForecastResult {
             ds: ds.to_vec(),
-            yhat,
+            trend,
             yhat_lower,
             yhat_upper,
-            trend,
-            yearly: yearly_unscaled,
+            trend_lower,
+            trend_upper,
+            additive_terms,
+            additive_terms_lower,
+            additive_terms_upper,
             weekly: weekly_unscaled,
+            weekly_lower,
+            weekly_upper,
+            yearly: yearly_unscaled,
+            yearly_lower,
+            yearly_upper,
+            multiplicative_terms,
+            multiplicative_terms_lower,
+            multiplicative_terms_upper,
+            yhat,
         })
     }
     
