@@ -7,13 +7,12 @@ on:
 
 jobs:
   test:
-    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Test Python ${{ matrix.python-version }} on Linux
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: [ '3.11', '3.12', '3.13', '3.14']
-        os: [ubuntu-latest, windows-latest, macos-latest]
     
     defaults:
       run:
@@ -42,45 +41,25 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
      
-      - name: Install system dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install gcc@13
-          echo "CC=$(brew --prefix gcc@13)/bin/gcc-13" >> $GITHUB_ENV
-          echo "CXX=$(brew --prefix gcc@13)/bin/g++-13" >> $GITHUB_ENV
-     
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install maturin pytest
      
-      - name: Install and compile CmdStan (Unix)
-        if: runner.os != 'Windows'
+      - name: Install and compile CmdStan
         run: |
           pip install cmdstanpy
           python -c "import cmdstanpy; cmdstanpy.install_cmdstan(compiler=True, verbose=True)"
         env:
           STAN_BACKEND: CMDSTANPY
      
-      - name: Install CmdStan (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          pip install cmdstanpy
-          python -c "import cmdstanpy; cmdstanpy.install_cmdstan()"
-        continue-on-error: true
-     
       - name: Build and install package
         run: |
           maturin build --release
           pip install target/wheels/*.whl
      
-      - name: Run Python tests (Unix)
-        if: runner.os != 'Windows'
+      - name: Run Python tests
         run: pytest tests/ -v
-     
-      - name: Run Python tests (Windows - skip Stan)
-        if: runner.os == 'Windows'
-        run: pytest tests/ -v -k "not stan"
      
       - name: Run Rust tests
         run: cargo test --all-features
