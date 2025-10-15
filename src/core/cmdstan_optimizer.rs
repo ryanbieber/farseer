@@ -106,7 +106,7 @@ impl CmdStanOptimizer {
 
         // Check if model binary exists
         if !self.model_path.exists() {
-            let candidates = vec![
+            let candidates = [
                 "stan/prophet_model",
                 "./stan/prophet_model",
                 concat!(env!("CARGO_MANIFEST_DIR"), "/stan/prophet_model"),
@@ -123,15 +123,15 @@ impl CmdStanOptimizer {
         let mut data_file = tempfile::Builder::new()
             .suffix(".json")
             .tempfile()
-            .map_err(|e| crate::SeerError::Io(e))?;
+            .map_err(crate::SeerError::Io)?;
         let mut init_file = tempfile::Builder::new()
             .suffix(".json")
             .tempfile()
-            .map_err(|e| crate::SeerError::Io(e))?;
+            .map_err(crate::SeerError::Io)?;
         let output_file = tempfile::Builder::new()
             .suffix(".csv")
             .tempfile()
-            .map_err(|e| crate::SeerError::Io(e))?;
+            .map_err(crate::SeerError::Io)?;
 
         // Write data in JSON format (CmdStan's preferred input format)
         let data_content = serde_json::to_string_pretty(data)
@@ -139,8 +139,8 @@ impl CmdStanOptimizer {
 
         data_file
             .write_all(data_content.as_bytes())
-            .map_err(|e| crate::SeerError::Io(e))?;
-        data_file.flush().map_err(|e| crate::SeerError::Io(e))?;
+            .map_err(crate::SeerError::Io)?;
+        data_file.flush().map_err(crate::SeerError::Io)?;
 
         // Write init in JSON format
         let init_content = serde_json::to_string_pretty(init)
@@ -148,8 +148,8 @@ impl CmdStanOptimizer {
 
         init_file
             .write_all(init_content.as_bytes())
-            .map_err(|e| crate::SeerError::Io(e))?;
-        init_file.flush().map_err(|e| crate::SeerError::Io(e))?;
+            .map_err(crate::SeerError::Io)?;
+        init_file.flush().map_err(crate::SeerError::Io)?;
 
         // Set LD_LIBRARY_PATH for TBB libraries
         let model_dir = self
@@ -201,14 +201,14 @@ impl CmdStanOptimizer {
         use std::fs::File;
         use std::io::{BufRead, BufReader};
 
-        let file = File::open(path).map_err(|e| crate::SeerError::Io(e))?;
+        let file = File::open(path).map_err(crate::SeerError::Io)?;
         let reader = BufReader::new(file);
 
         let mut header = Vec::new();
         let mut last_line = String::new();
 
         for line in reader.lines() {
-            let line = line.map_err(|e| crate::SeerError::Io(e))?;
+            let line = line.map_err(crate::SeerError::Io)?;
 
             // Skip comments
             if line.starts_with('#') {
@@ -259,10 +259,8 @@ impl CmdStanOptimizer {
                 if i < values.len() {
                     delta.push(values[i]);
                 }
-            } else if h.starts_with("beta.") {
-                if i < values.len() {
-                    beta.push(values[i]);
-                }
+            } else if h.starts_with("beta.") && i < values.len() {
+                beta.push(values[i]);
             }
         }
 

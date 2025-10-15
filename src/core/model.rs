@@ -63,6 +63,53 @@ struct HolidayBlock {
     end: usize,
 }
 
+/// Configuration for an additional regressor
+#[derive(Debug, Clone)]
+pub struct RegressorConfig {
+    pub name: String,
+    pub prior_scale: f64,
+    pub standardize: String, // "auto", "true", or "false"
+    pub mode: SeasonalityMode,
+    pub mu: f64,  // Mean (for standardization)
+    pub std: f64, // Std dev (for standardization)
+}
+
+impl RegressorConfig {
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            prior_scale: 10.0, // Default to holidays_prior_scale
+            standardize: "auto".to_string(),
+            mode: SeasonalityMode::Additive,
+            mu: 0.0,
+            std: 1.0,
+        }
+    }
+
+    pub fn with_prior_scale(mut self, scale: f64) -> Self {
+        self.prior_scale = scale;
+        self
+    }
+
+    pub fn with_standardize(mut self, standardize: &str) -> Self {
+        self.standardize = standardize.to_string();
+        self
+    }
+
+    pub fn with_mode(mut self, mode: SeasonalityMode) -> Self {
+        self.mode = mode;
+        self
+    }
+}
+
+/// Metadata for a regressor feature block in the design matrix
+#[derive(Debug, Clone)]
+struct RegressorBlock {
+    name: String,
+    start: usize,
+    end: usize,
+}
+
 pub struct Seer {
     trend: TrendType,
     n_changepoints: usize,
@@ -73,12 +120,19 @@ pub struct Seer {
     daily_seasonality: bool,
     seasonality_mode: SeasonalityMode,
 
+    // Manual changepoints
+    manual_changepoints: Option<Vec<String>>, // User-specified changepoint dates
+    specified_changepoints: bool,             // Whether changepoints were manually specified
+
     // Custom seasonalities registry
     seasonalities: Vec<SeasonalityConfig>,
 
     // Holidays registry
     holidays: Vec<HolidayConfig>,
     country_holidays: Vec<String>, // Countries to fetch holidays for
+
+    // Regressors registry
+    regressors: Vec<RegressorConfig>,
 
     // Fitted parameters
     fitted: bool,
@@ -89,6 +143,7 @@ pub struct Seer {
     t_change: Vec<f64>,
     // Y scaling (Prophet compatibility)
     y_scale: f64,
+    #[allow(dead_code)]
     logistic_floor: bool,
     // Trend params
     k: f64,
@@ -100,6 +155,8 @@ pub struct Seer {
     // Holiday params
     gamma: Vec<f64>, // Holiday coefficients
     holiday_blocks: Vec<HolidayBlock>,
+    // Regressor params
+    regressor_blocks: Vec<RegressorBlock>,
     // Uncertainty params
     sigma_obs: f64,
     interval_width: f64,
@@ -162,9 +219,12 @@ impl Seer {
             weekly_seasonality: true,
             daily_seasonality: false,
             seasonality_mode: SeasonalityMode::Additive,
+            manual_changepoints: None,
+            specified_changepoints: false,
             seasonalities: Vec::new(),
             holidays: Vec::new(),
             country_holidays: Vec::new(),
+            regressors: Vec::new(),
             fitted: false,
             history: None,
             t0: None,
@@ -179,6 +239,7 @@ impl Seer {
             season_blocks: Vec::new(),
             gamma: Vec::new(),
             holiday_blocks: Vec::new(),
+            regressor_blocks: Vec::new(),
             sigma_obs: 1.0,
             interval_width: 0.80,
         }
@@ -195,7 +256,9 @@ impl Seer {
     }
 
     pub fn with_changepoint_range(mut self, range: f64) -> Result<Self> {
-        if range < 0.0 || range > 1.0 {
+        // Note: NaN passes this validation (both comparisons are false).
+        // If you want to reject NaN, add an explicit check: if range.is_nan() { ... }
+        if !(0.0..=1.0).contains(&range) {
             return Err(crate::SeerError::DataValidation(format!(
                 "changepoint_range must be between 0 and 1, got {}",
                 range
@@ -207,6 +270,22 @@ impl Seer {
 
     pub fn with_changepoint_prior_scale(mut self, scale: f64) -> Self {
         self.changepoint_prior_scale = scale;
+        self
+    }
+
+    /// Set manual changepoints (dates as strings in "YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS" format)
+    /// This will override automatic changepoint detection.
+    /// Changepoints must be within the training data range (validated during fit).
+    pub fn with_manual_changepoints(mut self, changepoints: Vec<String>) -> Self {
+        if changepoints.is_empty() {
+            self.manual_changepoints = Some(Vec::new());
+            self.specified_changepoints = true;
+            self.n_changepoints = 0;
+        } else {
+            self.manual_changepoints = Some(changepoints.clone());
+            self.specified_changepoints = true;
+            self.n_changepoints = changepoints.len();
+        }
         self
     }
 
@@ -291,7 +370,59 @@ impl Seer {
         let use_daily = self.daily_seasonality;
 
         // Changepoints (locations in t units)
-        let t_change = select_changepoints(&t_hist, self.n_changepoints, self.changepoint_range);
+        // Use manual changepoints if specified, otherwise auto-detect
+        let t_change = if self.specified_changepoints {
+            // Manual changepoints were provided
+            if let Some(ref manual_cps) = self.manual_changepoints {
+                if manual_cps.is_empty() {
+                    // Empty manual changepoints = no changepoints
+                    Vec::new()
+                } else {
+                    // Parse manual changepoint dates and convert to t values
+                    let cp_dates: Vec<NaiveDateTime> = manual_cps
+                        .iter()
+                        .filter_map(|ds_str| parse_ds(ds_str))
+                        .collect();
+
+                    // Note: Unlike Prophet, we don't strictly validate that changepoints
+                    // are within the training data range. This allows users to specify
+                    // changepoints in gaps in the data or even slightly outside for
+                    // forecasting purposes. The changepoint will simply not have an
+                    // effect if it's outside the data range.
+
+                    // Convert to t values (normalized time)
+                    let mut t_change_vals: Vec<f64> = cp_dates
+                        .iter()
+                        .map(|cp_date| {
+                            let dt = *cp_date - t0;
+                            let s = dt.num_microseconds().unwrap_or(0) as f64 / 1_000_000.0;
+                            if t_scale > 0.0 {
+                                s / t_scale
+                            } else {
+                                0.0
+                            }
+                        })
+                        .collect();
+
+                    // Sort and remove duplicates
+                    t_change_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                    t_change_vals.dedup_by(|a, b| (*a - *b).abs() < 1e-12);
+
+                    // Filter out changepoints that are outside the [0, 1] normalized time range
+                    // (these would be outside the history's time span)
+                    t_change_vals.retain(|&t| (0.0..=1.0).contains(&t));
+
+                    t_change_vals
+                }
+            } else {
+                // specified_changepoints is true but manual_changepoints is None
+                // This shouldn't happen, but handle gracefully
+                Vec::new()
+            }
+        } else {
+            // Automatic changepoint detection
+            select_changepoints(&t_hist, self.n_changepoints, self.changepoint_range)
+        };
 
         // t in days since start for seasonality features
         let t_days: Vec<f64> = ts
@@ -373,6 +504,109 @@ impl Seer {
         blocks.extend(holiday_blocks_additive);
         blocks.extend(holiday_blocks_multiplicative);
 
+        // Add regressor features
+        let mut regressor_blocks_additive: Vec<Vec<Vec<f64>>> = Vec::new();
+        let mut regressor_blocks_multiplicative: Vec<Vec<Vec<f64>>> = Vec::new();
+        let mut regressor_blocks: Vec<RegressorBlock> = Vec::new();
+        let mut updated_regressors = Vec::new();
+
+        for config in &self.regressors {
+            // Check if regressor column exists in data
+            if let Some(regressor_values) = data.regressors.get(&config.name) {
+                // Compute standardization parameters
+                let mut updated_config = config.clone();
+
+                // Check for unique values (for binary detection)
+                let mut unique_vals = Vec::new();
+                for &val in regressor_values {
+                    if !unique_vals.iter().any(|&v: &f64| (v - val).abs() < 1e-10) {
+                        unique_vals.push(val);
+                        if unique_vals.len() > 2 {
+                            break; // More than 2 unique values, not binary
+                        }
+                    }
+                }
+
+                let mut should_standardize = false;
+
+                match config.standardize.to_lowercase().as_str() {
+                    "auto" => {
+                        // Auto: standardize unless binary (only 0 and 1)
+                        if unique_vals.len() >= 2 {
+                            let mut sorted_unique = unique_vals.clone();
+                            sorted_unique.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                            // Check if it's binary 0/1
+                            should_standardize = !(sorted_unique.len() == 2
+                                && (sorted_unique[0] - 0.0).abs() < 1e-10
+                                && (sorted_unique[1] - 1.0).abs() < 1e-10);
+                        }
+                    }
+                    "true" => should_standardize = true,
+                    "false" => should_standardize = false,
+                    _ => should_standardize = false,
+                }
+
+                // Special case: if regressor is constant, don't standardize
+                if unique_vals.len() < 2 {
+                    should_standardize = false;
+                }
+
+                let (mu, std) = if should_standardize {
+                    let mean = regressor_values.iter().sum::<f64>() / regressor_values.len() as f64;
+                    let variance = regressor_values
+                        .iter()
+                        .map(|&x| (x - mean).powi(2))
+                        .sum::<f64>()
+                        / regressor_values.len() as f64;
+                    let std_dev = variance.sqrt();
+                    (mean, std_dev.max(1.0)) // Ensure std is at least 1.0 to avoid division by zero
+                } else {
+                    (0.0, 1.0)
+                };
+
+                updated_config.mu = mu;
+                updated_config.std = std;
+
+                // Standardize regressor values
+                let standardized: Vec<f64> =
+                    regressor_values.iter().map(|&x| (x - mu) / std).collect();
+
+                // Add as a single column feature
+                let regressor_feature: Vec<Vec<f64>> =
+                    standardized.iter().map(|&v| vec![v]).collect();
+
+                let cols = 1; // Regressors are always single columns
+                match updated_config.mode {
+                    SeasonalityMode::Additive => regressor_blocks_additive.push(regressor_feature),
+                    SeasonalityMode::Multiplicative => {
+                        regressor_blocks_multiplicative.push(regressor_feature)
+                    }
+                }
+
+                let col_end = col_start + cols;
+                regressor_blocks.push(RegressorBlock {
+                    name: config.name.clone(),
+                    start: col_start,
+                    end: col_end,
+                });
+                col_start = col_end;
+
+                updated_regressors.push(updated_config);
+            } else {
+                return Err(crate::SeerError::DataValidation(format!(
+                    "Regressor '{}' not found in dataframe",
+                    config.name
+                )));
+            }
+        }
+
+        // Update regressor configs with computed mu/std
+        self.regressors = updated_regressors;
+
+        // Combine regressor blocks
+        blocks.extend(regressor_blocks_additive);
+        blocks.extend(regressor_blocks_multiplicative);
+
         // Prepare design matrix X for Stan/OLS
         let x_matrix = if !blocks.is_empty() {
             hstack(&blocks)
@@ -403,6 +637,7 @@ impl Seer {
         let mut s_a = vec![0.0; total_features];
         let mut s_m = vec![0.0; total_features];
 
+        // Set mode indicators for seasonality blocks
         for block in &season_blocks {
             for i in block.start..block.end {
                 // Find the corresponding seasonality config
@@ -416,6 +651,37 @@ impl Seer {
                 }
             }
         }
+
+        // Set mode indicators for holiday blocks
+        for block in &holiday_blocks {
+            for i in block.start..block.end {
+                // Find the corresponding holiday config
+                let config = self.holidays.iter().find(|c| c.name == block.name).unwrap();
+                match config.mode {
+                    SeasonalityMode::Additive => s_a[i] = 1.0,
+                    SeasonalityMode::Multiplicative => s_m[i] = 1.0,
+                }
+            }
+        }
+
+        // Set mode indicators for regressor blocks
+        for block in &regressor_blocks {
+            for i in block.start..block.end {
+                // Find the corresponding regressor config
+                let config = self
+                    .regressors
+                    .iter()
+                    .find(|c| c.name == block.name)
+                    .unwrap();
+                match config.mode {
+                    SeasonalityMode::Additive => s_a[i] = 1.0,
+                    SeasonalityMode::Multiplicative => s_m[i] = 1.0,
+                }
+            }
+        }
+
+        // Store regressor blocks for prediction
+        self.regressor_blocks = regressor_blocks;
 
         // Use Stan for parameter estimation
         let stan_model = StanModel::new()?;
@@ -435,7 +701,32 @@ impl Seer {
         let cap_scaled: Vec<f64> = cap.iter().map(|&v| v / y_scale).collect();
 
         // Prepare prior scales for regressors
-        let sigmas = vec![10.0; total_features]; // Default prior scale
+        let mut sigmas = vec![10.0; total_features]; // Default prior scale
+
+        // Set custom prior scales for seasonality features
+        for block in &season_blocks {
+            let config = all_seasonalities
+                .iter()
+                .find(|c| c.name == block.name)
+                .unwrap();
+            sigmas[block.start..block.end].fill(config.prior_scale);
+        }
+
+        // Set custom prior scales for holiday features
+        for block in &holiday_blocks {
+            let config = self.holidays.iter().find(|c| c.name == block.name).unwrap();
+            sigmas[block.start..block.end].fill(config.prior_scale);
+        }
+
+        // Set custom prior scales for regressor features
+        for block in &self.regressor_blocks {
+            let config = self
+                .regressors
+                .iter()
+                .find(|c| c.name == block.name)
+                .unwrap();
+            sigmas[block.start..block.end].fill(config.prior_scale);
+        }
 
         // Use CmdStan optimizer (110x faster than BridgeStan)
         // Set LD_LIBRARY_PATH=./stan to find TBB libraries
@@ -479,10 +770,19 @@ impl Seer {
     }
 
     pub fn predict(&self, ds: &[String]) -> Result<ForecastResult> {
-        self.predict_with_cap(ds, None)
+        self.predict_with_data(ds, None, &std::collections::HashMap::new())
     }
 
     pub fn predict_with_cap(&self, ds: &[String], cap: Option<Vec<f64>>) -> Result<ForecastResult> {
+        self.predict_with_data(ds, cap, &std::collections::HashMap::new())
+    }
+
+    pub fn predict_with_data(
+        &self,
+        ds: &[String],
+        cap: Option<Vec<f64>>,
+        regressors: &std::collections::HashMap<String, Vec<f64>>,
+    ) -> Result<ForecastResult> {
         if !self.fitted {
             return Err(crate::SeerError::Prediction(
                 "Model must be fitted before prediction".to_string(),
@@ -689,7 +989,66 @@ impl Seer {
             }
         }
 
-        // Combine trend with seasonality and holiday components
+        // Regressor contributions
+        if !self.regressor_blocks.is_empty() {
+            for r_block in &self.regressor_blocks {
+                if r_block.start == r_block.end {
+                    continue;
+                }
+
+                // Get regressor config for this block
+                if let Some(config) = self.regressors.iter().find(|r| r.name == r_block.name) {
+                    // Check if regressor data is provided
+                    if let Some(regressor_values) = regressors.get(&config.name) {
+                        // Validate length
+                        if regressor_values.len() != ds.len() {
+                            return Err(crate::SeerError::Prediction(format!(
+                                "Regressor '{}' length ({}) must match prediction length ({})",
+                                config.name,
+                                regressor_values.len(),
+                                ds.len()
+                            )));
+                        }
+
+                        // Standardize regressor values using stored mu and std
+                        let standardized: Vec<f64> = regressor_values
+                            .iter()
+                            .map(|&x| (x - config.mu) / config.std)
+                            .collect();
+
+                        // Get beta coefficients for this regressor
+                        let beta_slice = &self.beta[r_block.start..r_block.end];
+
+                        // Compute contribution (regressor is a single column)
+                        let mut comp = vec![0.0; ds.len()];
+                        for i in 0..standardized.len() {
+                            comp[i] = standardized[i] * beta_slice[0];
+                        }
+
+                        // Apply based on mode
+                        match config.mode {
+                            SeasonalityMode::Additive => {
+                                for i in 0..ds.len() {
+                                    seasonal_additive[i] += comp[i];
+                                }
+                            }
+                            SeasonalityMode::Multiplicative => {
+                                for i in 0..ds.len() {
+                                    seasonal_multiplicative[i] += comp[i];
+                                }
+                            }
+                        }
+                    } else {
+                        return Err(crate::SeerError::Prediction(format!(
+                            "Regressor '{}' data not provided for prediction",
+                            config.name
+                        )));
+                    }
+                }
+            }
+        }
+
+        // Combine trend with seasonality, holiday, and regressor components
         // yhat = trend * (1 + seasonal_multiplicative) + seasonal_additive
         let yhat_scaled: Vec<f64> = (0..ds.len())
             .map(|i| trend[i] * (1.0 + seasonal_multiplicative[i]) + seasonal_additive[i])
@@ -940,9 +1299,83 @@ impl Seer {
         Ok(())
     }
 
+    /// Add an additional regressor to be used for fitting and predicting.
+    ///
+    /// # Arguments
+    /// * `name` - Name of the regressor (must match a column in the dataframe)
+    /// * `prior_scale` - Regularization parameter (default 10.0)
+    /// * `standardize` - "auto", "true", or "false" (default "auto": standardize unless binary)
+    /// * `mode` - "additive" or "multiplicative" (default: model's seasonality_mode)
+    pub fn add_regressor(
+        &mut self,
+        name: &str,
+        prior_scale: Option<f64>,
+        standardize: Option<&str>,
+        mode: Option<&str>,
+    ) -> Result<()> {
+        if self.fitted {
+            return Err(crate::SeerError::DataValidation(
+                "Regressors must be added prior to model fitting".to_string(),
+            ));
+        }
+
+        // Check for duplicate names
+        if self.regressors.iter().any(|r| r.name == name) {
+            return Err(crate::SeerError::DataValidation(format!(
+                "Regressor with name '{}' already exists",
+                name
+            )));
+        }
+
+        let mut config = RegressorConfig::new(name);
+
+        if let Some(scale) = prior_scale {
+            if scale <= 0.0 {
+                return Err(crate::SeerError::DataValidation(
+                    "Prior scale must be > 0".to_string(),
+                ));
+            }
+            config = config.with_prior_scale(scale);
+        }
+
+        if let Some(std) = standardize {
+            if !["auto", "true", "false"].contains(&std.to_lowercase().as_str()) {
+                return Err(crate::SeerError::DataValidation(
+                    "standardize must be 'auto', 'true', or 'false'".to_string(),
+                ));
+            }
+            config = config.with_standardize(std);
+        }
+
+        if let Some(mode_str) = mode {
+            let regressor_mode = match mode_str.to_lowercase().as_str() {
+                "additive" => SeasonalityMode::Additive,
+                "multiplicative" => SeasonalityMode::Multiplicative,
+                _ => {
+                    return Err(crate::SeerError::DataValidation(format!(
+                        "Invalid regressor mode: {}. Must be 'additive' or 'multiplicative'.",
+                        mode_str
+                    )))
+                }
+            };
+            config = config.with_mode(regressor_mode);
+        } else {
+            // Use model's default seasonality mode
+            config = config.with_mode(self.seasonality_mode);
+        }
+
+        self.regressors.push(config);
+        Ok(())
+    }
+
     /// Get reference to training history (for predict without df)
     pub fn get_history(&self) -> Option<&TimeSeriesData> {
         self.history.as_ref()
+    }
+
+    /// Get the list of regressor names
+    pub fn get_regressor_names(&self) -> Vec<String> {
+        self.regressors.iter().map(|r| r.name.clone()).collect()
     }
 
     pub fn get_params(&self) -> serde_json::Value {
@@ -962,6 +1395,8 @@ impl Seer {
             "n_changepoints": self.n_changepoints,
             "changepoint_range": self.changepoint_range,
             "changepoint_prior_scale": self.changepoint_prior_scale,
+            "changepoints": self.manual_changepoints.as_ref().unwrap_or(&vec![]),
+            "specified_changepoints": self.specified_changepoints,
 
             // Seasonality configuration
             "yearly_seasonality": self.yearly_seasonality,
@@ -1015,6 +1450,22 @@ impl Seer {
             })).collect::<Vec<_>>(),
 
             "holiday_blocks": self.holiday_blocks.iter().map(|b| serde_json::json!({
+                "name": b.name,
+                "start": b.start,
+                "end": b.end,
+            })).collect::<Vec<_>>(),
+
+            // Regressors
+            "regressors": self.regressors.iter().map(|r| serde_json::json!({
+                "name": r.name,
+                "prior_scale": r.prior_scale,
+                "standardize": r.standardize,
+                "mode": format!("{:?}", r.mode),
+                "mu": r.mu,
+                "std": r.std,
+            })).collect::<Vec<_>>(),
+
+            "regressor_blocks": self.regressor_blocks.iter().map(|b| serde_json::json!({
                 "name": b.name,
                 "start": b.start,
                 "end": b.end,
@@ -1176,12 +1627,15 @@ impl Seer {
             weekly_seasonality: params["weekly_seasonality"].as_bool().unwrap_or(true),
             daily_seasonality: params["daily_seasonality"].as_bool().unwrap_or(false),
             seasonality_mode,
+            manual_changepoints: None, // Manual changepoints not yet serialized
+            specified_changepoints: false, // Will be false when deserializing
             seasonalities,
             holidays,
             country_holidays,
+            regressors: Vec::new(), // Regressors not yet serialized
             fitted: params["fitted"].as_bool().unwrap_or(false),
             history: None, // History not serialized
-            t0: params["t0"].as_str().and_then(|s| parse_ds(s)),
+            t0: params["t0"].as_str().and_then(parse_ds),
             t_scale: params["t_scale"].as_f64().unwrap_or(1.0),
             t_change,
             y_scale: params["y_scale"].as_f64().unwrap_or(1.0),
@@ -1193,6 +1647,7 @@ impl Seer {
             season_blocks,
             gamma,
             holiday_blocks,
+            regressor_blocks: Vec::new(), // Regressor blocks not yet serialized
             sigma_obs: params["sigma_obs"].as_f64().unwrap_or(1.0),
             interval_width: params["interval_width"].as_f64().unwrap_or(0.8),
         })

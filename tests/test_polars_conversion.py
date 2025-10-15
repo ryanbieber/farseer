@@ -142,7 +142,8 @@ class TestSeerForecastEquivalence:
         weekly = 3 * np.sin(2 * np.pi * t / 7)
         yearly = 5 * np.sin(2 * np.pi * t / 365.25)
         trend = 0.05 * t + 50
-        np.random.seed(42)
+        # Use Prophet's seed for reproducibility (matches Facebook Prophet tests)
+        np.random.seed(876543987)
         noise = np.random.randn(n) * 0.5
         y_values = trend + weekly + yearly + noise
         

@@ -8,13 +8,14 @@ Based on Prophet's test_utilities.py
 import pytest
 import pandas as pd
 import numpy as np
-from seer import Seer
+from seer import Seer, regressor_coefficients
 
 
 @pytest.fixture
 def daily_univariate_ts():
     """Generate daily time series data for testing"""
-    np.random.seed(42)
+    # Use Prophet's seed for reproducibility (matches Facebook Prophet tests)
+    np.random.seed(876543987)
     n = 468
     dates = pd.date_range('2012-01-01', periods=n, freq='D')
     
@@ -31,13 +32,13 @@ def daily_univariate_ts():
 class TestUtilities:
     """Test utility functions"""
     
-    @pytest.mark.skip(reason="Regressor coefficients utility not yet implemented")
     def test_regressor_coefficients(self, daily_univariate_ts):
         """Test extracting regressor coefficients"""
         m = Seer()
         df = daily_univariate_ts.copy()
         
-        np.random.seed(123)
+        # Use Prophet's seed for reproducibility (matches Facebook Prophet tests)
+        np.random.seed(876543987)
         df["regr1"] = np.random.normal(size=df.shape[0])
         df["regr2"] = np.random.normal(size=df.shape[0])
         
@@ -45,9 +46,26 @@ class TestUtilities:
         m.add_regressor("regr2", mode="multiplicative")
         m.fit(df)
         
-        # Would extract coefficients here
-        # coefs = regressor_coefficients(m)
-        # assert coefs.shape[0] == 2
+        # Extract coefficients
+        coefs = regressor_coefficients(m)
+        assert coefs.shape[0] == 2
+        assert 'regressor' in coefs.columns
+        assert 'coef' in coefs.columns
+        assert 'regressor_mode' in coefs.columns
+        
+        # Check regressor names
+        assert set(coefs['regressor'].values) == {'regr1', 'regr2'}
+        
+        # Check modes
+        regr1_row = coefs[coefs['regressor'] == 'regr1'].iloc[0]
+        regr2_row = coefs[coefs['regressor'] == 'regr2'].iloc[0]
+        
+        assert 'additive' in regr1_row['regressor_mode'].lower()
+        assert 'multiplicative' in regr2_row['regressor_mode'].lower()
+        
+        # Coefficients should be numeric
+        assert isinstance(regr1_row['coef'], (int, float))
+        assert isinstance(regr2_row['coef'], (int, float))
 
 
 class TestDataValidation:
@@ -277,12 +295,6 @@ class TestModelCopy:
         # Should have same configuration
         assert m1.params()['n_changepoints'] == m2.params()['n_changepoints']
     
-    @pytest.mark.skip(reason="Deep copy functionality not yet tested")
-    def test_deep_copy(self):
-        """Test deep copying of fitted model"""
-        # Would test deep copy when implemented
-        pass
-
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

@@ -21,7 +21,8 @@ def ts_short(daily_univariate_ts):
 @pytest.fixture
 def daily_univariate_ts():
     """Generate daily time series data for testing"""
-    np.random.seed(42)
+    # Use Prophet's seed for reproducibility (matches Facebook Prophet tests)
+    np.random.seed(876543987)
     n = 468
     dates = pd.date_range('2012-01-01', periods=n, freq='D')
     
@@ -33,96 +34,6 @@ def daily_univariate_ts():
     y = trend + yearly + weekly + noise
     
     return pd.DataFrame({'ds': dates, 'y': y})
-
-
-class TestCrossValidation:
-    """Test cross-validation functionality"""
-    
-    @pytest.mark.skip(reason="Cross-validation not yet implemented")
-    def test_cross_validation(self, ts_short):
-        """Test basic cross-validation"""
-        m = Seer()
-        m.fit(ts_short)
-        
-        # This would test cross-validation when implemented
-        # df_cv = cross_validation(m, horizon="4 days", period="10 days", initial="115 days")
-        # assert len(np.unique(df_cv["cutoff"])) == 3
-    
-    @pytest.mark.skip(reason="Cross-validation not yet implemented")
-    def test_cross_validation_logistic_or_flat_growth(self, ts_short):
-        """Test cross-validation with logistic/flat growth"""
-        df = ts_short.copy()
-        df["cap"] = 40
-        
-        m = Seer(growth="logistic")
-        m.fit(df)
-        
-        # Test would go here
-    
-    @pytest.mark.skip(reason="Cross-validation not yet implemented")
-    def test_cross_validation_extra_regressors(self, ts_short):
-        """Test cross-validation with extra regressors"""
-        df = ts_short.copy()
-        df["extra"] = range(df.shape[0])
-        
-        m = Seer()
-        m.add_regressor("extra")
-        m.fit(df)
-        
-        # Test would go here
-    
-    @pytest.mark.skip(reason="Cross-validation not yet implemented")
-    def test_cross_validation_default_value_check(self, ts_short):
-        """Test default values in cross-validation"""
-        m = Seer()
-        m.fit(ts_short)
-        
-        # Default initial should be 3 * horizon
-        # Test would go here
-    
-    @pytest.mark.skip(reason="Cross-validation not yet implemented")
-    def test_cross_validation_custom_cutoffs(self, ts_short):
-        """Test cross-validation with custom cutoff dates"""
-        m = Seer()
-        m.fit(ts_short)
-        
-        # Test with custom cutoffs
-    
-    @pytest.mark.skip(reason="Cross-validation not yet implemented")
-    def test_cross_validation_uncertainty_disabled(self, ts_short):
-        """Test cross-validation with uncertainty disabled"""
-        m = Seer(uncertainty_samples=0)
-        m.fit(ts_short)
-        
-        # Test would go here
-
-
-class TestPerformanceMetrics:
-    """Test performance metric calculations"""
-    
-    @pytest.mark.skip(reason="Performance metrics not yet implemented")
-    def test_performance_metrics(self, ts_short):
-        """Test performance metric calculations"""
-        m = Seer()
-        m.fit(ts_short)
-        
-        # Would test MAE, MAPE, RMSE, coverage, etc.
-    
-    @pytest.mark.skip(reason="Performance metrics not yet implemented")
-    def test_rolling_mean(self):
-        """Test rolling mean calculation"""
-        x = np.arange(10)
-        h = np.arange(10)
-        
-        # Test rolling mean by horizon
-    
-    @pytest.mark.skip(reason="Performance metrics not yet implemented")
-    def test_rolling_median(self):
-        """Test rolling median calculation"""
-        x = np.arange(10)
-        h = np.arange(10)
-        
-        # Test rolling median by horizon
 
 
 class TestModelComparison:

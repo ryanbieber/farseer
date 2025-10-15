@@ -1,5 +1,8 @@
 // src/lib.rs - Full structure with Python bindings
 
+// Allow clippy::useless_conversion for PyO3-related false positives
+#![allow(clippy::useless_conversion)]
+
 use numpy::ToPyArray;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -82,6 +85,7 @@ impl Seer {
         uncertainty_samples=1000,
         changepoints=None,
     ))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         growth: &str,
         n_changepoints: usize,
@@ -133,6 +137,11 @@ impl Seer {
             seer = seer.with_daily_seasonality();
         } else {
             seer = seer.without_daily_seasonality();
+        }
+
+        // Set manual changepoints if provided
+        if let Some(cp_vec) = changepoints {
+            seer = seer.with_manual_changepoints(cp_vec);
         }
 
         Ok(Seer { inner: seer })
@@ -188,8 +197,29 @@ impl Seer {
             None
         };
 
-        let data = TimeSeriesData::new(ds, y, cap, weights)
+        let mut data = TimeSeriesData::new(ds, y, cap, weights)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        // Extract regressor columns if any are defined
+        // We need to get the list of regressors from the inner model
+        let regressor_names = self.inner.get_regressor_names();
+        for regressor_name in regressor_names {
+            if df_clean.hasattr(regressor_name.as_str())? {
+                let regressor_series = df_clean.getattr(regressor_name.as_str())?;
+                let regressor_values: Vec<f64> =
+                    regressor_series.call_method0("tolist")?.extract()?;
+                data = data
+                    .with_regressor(regressor_name.clone(), regressor_values)
+                    .map_err(|e| {
+                        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
+                    })?;
+            } else {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Regressor '{}' not found in dataframe",
+                    regressor_name
+                )));
+            }
+        }
 
         py.allow_threads(|| self.inner.fit(&data))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
@@ -200,8 +230,10 @@ impl Seer {
     /// Make predictions (df=None uses training data like Prophet)
     #[pyo3(signature = (df=None))]
     fn predict(&self, py: Python, df: Option<Bound<'_, PyAny>>) -> PyResult<PyObject> {
+        use std::collections::HashMap;
+
         // If df is None, use history (training data) like Prophet
-        let (ds, cap) = if let Some(df_val) = df {
+        let (ds, cap, regressors) = if let Some(df_val) = df {
             // Convert ds column to strings, handling datetime objects
             let ds_series = df_val.getattr("ds")?;
             let ds = convert_ds_to_strings(ds_series)?;
@@ -215,13 +247,31 @@ impl Seer {
                 None
             };
 
-            (ds, cap)
+            // Extract regressors
+            let regressor_names = self.inner.get_regressor_names();
+            let mut regressors_map = HashMap::new();
+            for regressor_name in regressor_names {
+                if df_val.hasattr(regressor_name.as_str())? {
+                    let regressor_series = df_val.getattr(regressor_name.as_str())?;
+                    let regressor_values: Vec<f64> =
+                        regressor_series.call_method0("tolist")?.extract()?;
+                    regressors_map.insert(regressor_name.clone(), regressor_values);
+                } else {
+                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                        "Regressor '{}' not found in prediction dataframe",
+                        regressor_name
+                    )));
+                }
+            }
+
+            (ds, cap, regressors_map)
         } else {
             // Use history if df is None
             if let Some(history) = self.inner.get_history() {
                 let ds = history.ds.clone();
                 let cap = history.cap.clone();
-                (ds, cap)
+                let regressors = history.regressors.clone();
+                (ds, cap, regressors)
             } else {
                 return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
                     "Model must be fitted before calling predict() without a dataframe",
@@ -230,7 +280,7 @@ impl Seer {
         };
 
         let forecast = py
-            .allow_threads(|| self.inner.predict_with_cap(&ds, cap))
+            .allow_threads(|| self.inner.predict_with_data(&ds, cap, &regressors))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         let pd = py.import_bound("pandas")?;
@@ -332,18 +382,18 @@ impl Seer {
         Ok(slf.into())
     }
 
-    /// Add regressor (Prophet compatibility - not fully implemented)
+    /// Add regressor
     #[pyo3(signature = (name, prior_scale=None, standardize=None, mode=None))]
     fn add_regressor(
-        slf: PyRefMut<'_, Self>,
+        mut slf: PyRefMut<'_, Self>,
         name: &str,
         prior_scale: Option<f64>,
-        standardize: Option<bool>,
+        standardize: Option<&str>,
         mode: Option<&str>,
     ) -> PyResult<Py<Self>> {
-        // For Prophet compatibility: accept the call but warn that regressors aren't fully supported
-        eprintln!("Warning: add_regressor() is not fully implemented in Seer. Regressor '{}' will be ignored.", name);
-        let _ = (prior_scale, standardize, mode); // Suppress unused warnings
+        slf.inner
+            .add_regressor(name, prior_scale, standardize, mode)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(slf.into())
     }
 
@@ -379,6 +429,11 @@ impl Seer {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         let json = py.import_bound("json")?;
         Ok(json.call_method1("loads", (json_str,))?.into())
+    }
+
+    /// Get list of regressor names
+    fn get_regressor_names(&self) -> Vec<String> {
+        self.inner.get_regressor_names()
     }
 
     /// Save model to file
