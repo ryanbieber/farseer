@@ -51,9 +51,9 @@ impl CmdStanOptimizer {
         let binary_name = Self::get_binary_name();
         let platform_dir = Self::get_platform_dir();
         let default_path = format!("stan/{}/{}", platform_dir, binary_name);
-        
-        let model_path = Self::find_model_binary()
-            .unwrap_or_else(|| std::path::PathBuf::from(default_path));
+
+        let model_path =
+            Self::find_model_binary().unwrap_or_else(|| std::path::PathBuf::from(default_path));
 
         Self {
             _config: config,
@@ -73,7 +73,7 @@ impl CmdStanOptimizer {
         // Get platform-specific binary name and directory
         let binary_name = Self::get_binary_name();
         let platform_dir = Self::get_platform_dir();
-        
+
         // Check environment variable first
         if let Ok(path) = std::env::var("PROPHET_MODEL_PATH") {
             let p = std::path::PathBuf::from(&path);
@@ -92,7 +92,12 @@ impl CmdStanOptimizer {
             format!("stan/{}", binary_name),
             format!("./stan/{}", binary_name),
             // Try to find via cargo manifest dir (compile-time)
-            format!("{}/stan/{}/{}", env!("CARGO_MANIFEST_DIR"), platform_dir, binary_name),
+            format!(
+                "{}/stan/{}/{}",
+                env!("CARGO_MANIFEST_DIR"),
+                platform_dir,
+                binary_name
+            ),
         ];
 
         for candidate in candidates {

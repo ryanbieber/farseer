@@ -53,7 +53,7 @@ impl StanModel {
     pub fn new_with_threads(_num_threads: Option<usize>) -> Result<Self> {
         let binary_name = Self::get_binary_name();
         let platform_dir = Self::get_platform_dir();
-        
+
         // Try multiple paths to find the prophet model binary
         let possible_paths = [
             // Platform-specific directories (preferred)
@@ -65,7 +65,10 @@ impl StanModel {
             // Relative to executable
             std::env::current_exe()
                 .ok()
-                .and_then(|exe| exe.parent().map(|p| p.join(format!("stan/{}/{}", platform_dir, binary_name))))
+                .and_then(|exe| {
+                    exe.parent()
+                        .map(|p| p.join(format!("stan/{}/{}", platform_dir, binary_name)))
+                })
                 .unwrap_or_else(|| PathBuf::from(format!("stan/{}/{}", platform_dir, binary_name))),
             // Environment variable override
             std::env::var("PROPHET_MODEL_PATH")

@@ -1,39 +1,19 @@
 name: Build CmdStan Binaries
 
 on:
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:  # Manual trigger with options
+    inputs:
+      build_linux:
+        description: 'Build Linux binaries'
+        required: false
+        default: true
+        type: boolean
   push:
     paths:
       - 'stan/prophet.stan'
       - '.github/workflows/build-stan-binaries.yml'
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Rtools
-        run: |
-          choco install rtools -y --no-progress --force --version=4.3.5550
-          echo "C:\rtools43\usr\bin;C:\rtools43\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Verify tools
-        run: |
-          g++ --version
-          make --version
-
-      - name: Build Windows binaries
-        run: |
-          .\build_stan_binaries.ps1
-
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: stan-binaries-windows
-          path: stan/windows/*
-
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -55,74 +35,3 @@ jobs:
         with:
           name: stan-binaries-linux
           path: stan/linux/*
-
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install build dependencies
-        run: |
-          xcode-select --install 2>/dev/null || true
-
-      - name: Build macOS binaries
-        run: |
-          chmod +x build_stan_binaries.sh
-          ./build_stan_binaries.sh
-
-      - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: stan-binaries-macos
-          path: stan/macos/*
-
-  create-release:
-    needs: [build-windows, build-linux, build-macos]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Display structure
-        run: ls -R artifacts
-
-      - name: Create release note
-        run: |
-          cat > release-notes.md << 'EOF'
-          # CmdStan Prophet Model Binaries
-          
-          This release contains pre-compiled CmdStan binaries for the Prophet forecasting model.
-          
-          ## Platform Support
-          - Windows (x86_64)
-          - Linux (x86_64)
-          - macOS (x86_64 and ARM64 compatible)
-          
-          ## Installation
-          These binaries are automatically included when installing the seer package.
-          
-          ## Building from Source
-          If you need to rebuild the binaries:
-          - Windows: Run `build_stan_binaries.ps1`
-          - Linux/macOS: Run `./build_stan_binaries.sh`
-          
-          ## CmdStan Version
-          Built with CmdStan 2.35.0
-          EOF
-
-      - name: Create artifact summary
-        run: |
-          echo "# Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Windows Binaries" >> $GITHUB_STEP_SUMMARY
-          ls -lh artifacts/stan-binaries-windows/ >> $GITHUB_STEP_SUMMARY || echo "No files" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Linux Binaries" >> $GITHUB_STEP_SUMMARY
-          ls -lh artifacts/stan-binaries-linux/ >> $GITHUB_STEP_SUMMARY || echo "No files" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## macOS Binaries" >> $GITHUB_STEP_SUMMARY
-          ls -lh artifacts/stan-binaries-macos/ >> $GITHUB_STEP_SUMMARY || echo "No files" >> $GITHUB_STEP_SUMMARY
