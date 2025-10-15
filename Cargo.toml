@@ -2,6 +2,14 @@
 name = "seer"
 version = "0.3.3"
 edition = "2021"
+description = "A high-performance time series forecasting library with Prophet-compatible API"
+license = "MIT"
+repository = "https://github.com/ryanbieber/seer"
+homepage = "https://github.com/ryanbieber/seer"
+documentation = "https://github.com/ryanbieber/seer"
+authors = ["Ryan Bieber"]
+keywords = ["forecasting", "time-series", "prophet", "statistics"]
+categories = ["science", "algorithms"]
 
 [lib]
 name = "seer"
