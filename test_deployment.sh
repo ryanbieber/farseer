@@ -33,9 +33,18 @@ fi
 echo -e "${GREEN}✅ Python is installed ($(python3 --version))${NC}"
 echo ""
 
+# Step 2.5: Check uv is installed
+echo -e "${YELLOW}Step 2.5: Checking uv installation...${NC}"
+if ! command -v uv &> /dev/null; then
+    echo -e "${RED}❌ uv is not installed. Install from https://github.com/astral-sh/uv${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✅ uv is installed ($(uv --version))${NC}"
+echo ""
+
 # Step 3: Install/upgrade maturin
 echo -e "${YELLOW}Step 3: Installing maturin...${NC}"
-pip install --upgrade maturin
+uv pip install --upgrade maturin
 echo -e "${GREEN}✅ Maturin is ready${NC}"
 echo ""
 
@@ -75,9 +84,11 @@ maturin develop --release
 echo -e "${GREEN}✅ Package installed in development mode${NC}"
 echo ""
 
-# Step 8: Run Python tests
-echo -e "${YELLOW}Step 8: Running Python tests...${NC}"
+# Step 8: Install dev dependencies and run Python tests
+echo -e "${YELLOW}Step 8: Installing dev dependencies and running Python tests...${NC}"
 if [ -d "tests" ]; then
+    echo "Installing dev dependencies..."
+    uv pip install -e ".[dev]"
     pytest tests/ -v
     echo -e "${GREEN}✅ Python tests passed${NC}"
 else

@@ -1,0 +1,22 @@
+# Include Stan models and compiled binaries
+recursive-include stan *.stan
+recursive-include stan *.so
+recursive-include stan *.so.*
+recursive-include stan *.dylib
+recursive-include stan *.dll
+recursive-include stan prophet_model*
+include stan/README.md
+
+# Include version file
+include seer/__version__.py
+
+# Include package metadata
+include README.md
+include LICENSE
+include pyproject.toml
+include Cargo.toml
+
+# Exclude build artifacts
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude .DS_Store

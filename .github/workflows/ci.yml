@@ -1,4 +1,5 @@
 name: CI
+
 on:
   push:
     branches: [ master, main, develop ]
@@ -7,12 +8,13 @@ on:
 
 jobs:
   test:
-    name: Test Python ${{ matrix.python-version }} on Linux
-    runs-on: ubuntu-latest
+    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: [ '3.11', '3.12', '3.13']
+        os: [ubuntu-latest]
+        python-version: ['3.11', '3.12', '3.13']
     
     defaults:
       run:
@@ -41,14 +43,13 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
      
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install maturin pytest
+          pip install maturin pytest pytest-cov cmdstanpy
      
       - name: Install and compile CmdStan
         run: |
-          pip install cmdstanpy
           python -c "import cmdstanpy; cmdstanpy.install_cmdstan(compiler=True, verbose=True)"
         env:
           STAN_BACKEND: CMDSTANPY
@@ -59,30 +60,38 @@ jobs:
           import cmdstanpy
           import shutil
           from pathlib import Path
+          import platform
           
-          # Compile the Stan model
-          print("Compiling Prophet Stan model...")
-          model = cmdstanpy.CmdStanModel(stan_file="stan/prophet.stan")
+          # Compile the Stan model with threading support
+          print("Compiling Prophet Stan model with threading support...")
+          model = cmdstanpy.CmdStanModel(
+              stan_file="stan/prophet.stan",
+              cpp_options={"STAN_THREADS": True}
+          )
           print(f"Compiled executable: {model.exe_file}")
           
-          # Create linux directory and copy the binary
-          linux_dir = Path("stan/linux")
-          linux_dir.mkdir(parents=True, exist_ok=True)
+          # Determine platform-specific directory
+          system = platform.system().lower()
+          platform_dir = ""  # Use stan/ root directory for Linux
+          
+          # Create platform directory and copy the binary
+          target_dir = Path("stan")
+          target_dir.mkdir(parents=True, exist_ok=True)
           
           # Copy the compiled executable
-          shutil.copy2(model.exe_file, linux_dir / "prophet_model")
-          (linux_dir / "prophet_model").chmod(0o755)
+          shutil.copy2(model.exe_file, target_dir / "prophet_model")
+          (target_dir / "prophet_model").chmod(0o755)
           
-          print(f"✓ Binary installed at: {linux_dir / 'prophet_model'}")
-          print(f"  Size: {(linux_dir / 'prophet_model').stat().st_size} bytes")
+          print(f"✓ Binary installed at: {target_dir / 'prophet_model'}")
+          print(f"  Size: {(target_dir / 'prophet_model').stat().st_size} bytes")
           
-          # Copy TBB libraries
+          # Copy TBB libraries (Linux .so files only)
           cmdstan_path = Path(cmdstanpy.cmdstan_path())
           tbb_dir = cmdstan_path / "stan" / "lib" / "stan_math" / "lib" / "tbb"
           if tbb_dir.exists():
               for lib in tbb_dir.glob("*.so*"):
-                  shutil.copy2(lib, linux_dir)
-              print(f"✓ TBB libraries copied to {linux_dir}")
+                  shutil.copy2(lib, target_dir)
+              print(f"✓ TBB libraries copied to {target_dir}")
           EOF
      
       - name: Build and install package
@@ -90,13 +99,21 @@ jobs:
           maturin build --release
           pip install target/wheels/*.whl
         env:
-          PROPHET_MODEL_PATH: ${{ github.workspace }}/stan/linux/prophet_model
+          PROPHET_MODEL_PATH: ${{ github.workspace }}/stan/prophet_model
      
       - name: Run Python tests
-        run: pytest tests/ -v
+        run: pytest tests/ -v --cov=seer --cov-report=xml
         env:
-          PROPHET_MODEL_PATH: ${{ github.workspace }}/stan/linux/prophet_model
-          LD_LIBRARY_PATH: ${{ github.workspace }}/stan/linux
+          PROPHET_MODEL_PATH: ${{ github.workspace }}/stan/prophet_model
+          LD_LIBRARY_PATH: ${{ github.workspace }}/stan
+     
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
      
       - name: Run Rust tests
         run: cargo test --all-features

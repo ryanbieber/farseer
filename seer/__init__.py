@@ -24,9 +24,10 @@ Example:
 """
 
 # This file provides Python-level enhancements to the Rust Seer class
-# The base Seer class and __version__ are defined in the Rust library (src/lib.rs)
+# The base Seer class is defined in the Rust library (src/lib.rs)
 # and compiled via PyO3/maturin
 
+from pathlib import Path
 from typing import Union, Optional, List
 
 # Try importing polars, it's required

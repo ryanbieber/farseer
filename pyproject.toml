@@ -1,40 +1,56 @@
 [build-system]
-requires = ["maturin>=1.0,<2.0"]
+requires = [
+    "maturin>=1.0,<2.0",
+    "cmdstanpy>=1.0.4",
+]
 build-backend = "maturin"
 
 [project]
 name = "seer"
-version = "0.3.4"
+dynamic = ["version"]
 description = "Fast Bayesian time series forecasting in Rust, with Python bindings"
-authors = [{name = "Ryan Bieber", email = "ryan.bieber@protonmail.com"}]
 readme = "README.md"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.11"
+authors = [
+    {name = "Ryan Bieber", email = "ryan.bieber@protonmail.com"},
+]
 license = {text = "MIT"}
 keywords = ["forecasting", "time-series", "prophet", "bayesian", "rust"]
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
-    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
 ]
 dependencies = [
+    "cmdstanpy>=1.0.4",
+    "numpy>=1.15.4",
+    "matplotlib>=2.0.0",
+    "pandas>=1.0.4",
     "polars>=0.20.0",
-    "pyarrow>=10.0", # Required for polars-pandas conversion
-    "numpy>=1.26.0",
-    "matplotlib>=3.9.0",
-    "pandas>=2.2.0",
+    "pyarrow>=10.0",
+    "tqdm>=4.36.1",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+    "pytest-cov>=4.0",
 ]
-pandas = ["pandas>=1.0"]
+parallel = [
+    "tqdm>=4.36.1",
+]
 notebook = [
     "jupyter>=1.0",
     "notebook>=7.0",
@@ -45,8 +61,16 @@ notebook = [
     "scikit-learn>=1.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/ryanbieber/seer"
+Documentation = "https://github.com/ryanbieber/seer"
+Repository = "https://github.com/ryanbieber/seer"
+Issues = "https://github.com/ryanbieber/seer/issues"
+
 [tool.maturin]
 # Python source files are in the seer/ directory
 python-source = "."
 # The Rust module will be named _seer and placed inside the seer package
 module-name = "seer._seer"
+# Include Stan model and related files
+include = ["stan/*", "seer/__version__.py"]
