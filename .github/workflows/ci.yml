@@ -53,16 +53,56 @@ jobs:
         env:
           STAN_BACKEND: CMDSTANPY
      
+      - name: Compile Prophet Stan model
+        run: |
+          python << 'EOF'
+          import cmdstanpy
+          import shutil
+          from pathlib import Path
+          
+          # Compile the Stan model
+          print("Compiling Prophet Stan model...")
+          model = cmdstanpy.CmdStanModel(stan_file="stan/prophet.stan")
+          print(f"Compiled executable: {model.exe_file}")
+          
+          # Create linux directory and copy the binary
+          linux_dir = Path("stan/linux")
+          linux_dir.mkdir(parents=True, exist_ok=True)
+          
+          # Copy the compiled executable
+          shutil.copy2(model.exe_file, linux_dir / "prophet_model")
+          (linux_dir / "prophet_model").chmod(0o755)
+          
+          print(f"✓ Binary installed at: {linux_dir / 'prophet_model'}")
+          print(f"  Size: {(linux_dir / 'prophet_model').stat().st_size} bytes")
+          
+          # Copy TBB libraries
+          cmdstan_path = Path(cmdstanpy.cmdstan_path())
+          tbb_dir = cmdstan_path / "stan" / "lib" / "stan_math" / "lib" / "tbb"
+          if tbb_dir.exists():
+              for lib in tbb_dir.glob("*.so*"):
+                  shutil.copy2(lib, linux_dir)
+              print(f"✓ TBB libraries copied to {linux_dir}")
+          EOF
+     
       - name: Build and install package
         run: |
           maturin build --release
           pip install target/wheels/*.whl
+        env:
+          PROPHET_MODEL_PATH: ${{ github.workspace }}/stan/linux/prophet_model
      
       - name: Run Python tests
         run: pytest tests/ -v
+        env:
+          PROPHET_MODEL_PATH: ${{ github.workspace }}/stan/linux/prophet_model
+          LD_LIBRARY_PATH: ${{ github.workspace }}/stan/linux
      
       - name: Run Rust tests
         run: cargo test --all-features
+        env:
+          PROPHET_MODEL_PATH: ${{ github.workspace }}/stan/linux/prophet_model
+          LD_LIBRARY_PATH: ${{ github.workspace }}/stan/linux
  
   lint:
     name: Lint
