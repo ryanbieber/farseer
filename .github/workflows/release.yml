@@ -12,8 +12,11 @@ jobs:
 
   # Build wheels for different platforms
   build-wheels:
-    name: Build wheels on Linux
+    name: Build wheels on Linux for Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
     
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +24,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
       
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -37,7 +40,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-linux
+          name: wheels-linux-${{ matrix.python-version }}
           path: dist
   
   # Build source distribution
