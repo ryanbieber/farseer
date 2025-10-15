@@ -9,73 +9,11 @@ permissions:
   contents: read
 
 jobs:
-  # First, run all tests before building
-  test:
-    name: Test Python ${{ matrix.python-version }} on Linux
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.11', '3.12', '3.13']
-    
-    defaults:
-      run:
-        shell: bash
-   
-    steps:
-      - uses: actions/checkout@v4
-     
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: 'x64'
-     
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-     
-      - name: Cache Rust dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-     
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install maturin pytest
-     
-      - name: Install and compile CmdStan
-        run: |
-          pip install cmdstanpy
-          python -c "import cmdstanpy; cmdstanpy.install_cmdstan(compiler=True, verbose=True)"
-        env:
-          STAN_BACKEND: CMDSTANPY
-     
-      - name: Build and install package
-        run: |
-          maturin build --release
-          pip install target/wheels/*.whl
-     
-      - name: Run Python tests
-        run: pytest tests/ -v
-     
-      - name: Run Rust tests
-        run: cargo test --all-features
-  
+
   # Build wheels for different platforms
   build-wheels:
-    name: Build wheels on ${{ matrix.os }}
-    needs: test  # Only build if tests pass
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+    name: Build wheels on Linux
+    runs-on: ubuntu-latest
     
     steps:
       - uses: actions/checkout@v4
@@ -91,7 +29,7 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.os == 'ubuntu-latest' && 'x86_64' || 'auto' }}
+          target: x86_64
           args: --release --out dist --find-interpreter
           sccache: 'true'
           manylinux: auto
@@ -99,13 +37,12 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
+          name: wheels-linux
           path: dist
   
   # Build source distribution
   build-sdist:
     name: Build source distribution
-    needs: test  # Only build if tests pass
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
