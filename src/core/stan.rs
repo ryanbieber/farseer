@@ -17,20 +17,61 @@ impl StanModel {
         Self::new_with_threads(None)
     }
 
+    /// Get the platform-specific binary name
+    fn get_binary_name() -> &'static str {
+        #[cfg(target_os = "windows")]
+        {
+            "prophet_model.exe"
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            "prophet_model"
+        }
+    }
+
+    /// Get the platform-specific directory
+    fn get_platform_dir() -> &'static str {
+        #[cfg(target_os = "windows")]
+        {
+            "windows"
+        }
+        #[cfg(target_os = "linux")]
+        {
+            "linux"
+        }
+        #[cfg(target_os = "macos")]
+        {
+            "macos"
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+        {
+            "linux" // Fallback to linux for other Unix-like systems
+        }
+    }
+
     /// Create a new StanModel with specified number of threads
     pub fn new_with_threads(_num_threads: Option<usize>) -> Result<Self> {
+        let binary_name = Self::get_binary_name();
+        let platform_dir = Self::get_platform_dir();
+        
         // Try multiple paths to find the prophet model binary
         let possible_paths = [
-            PathBuf::from("stan/prophet_model"),
-            PathBuf::from("./stan/prophet_model"),
+            // Platform-specific directories (preferred)
+            PathBuf::from(format!("stan/{}/{}", platform_dir, binary_name)),
+            PathBuf::from(format!("./stan/{}/{}", platform_dir, binary_name)),
+            // Legacy paths (backward compatibility)
+            PathBuf::from(format!("stan/{}", binary_name)),
+            PathBuf::from(format!("./stan/{}", binary_name)),
+            // Relative to executable
             std::env::current_exe()
                 .ok()
-                .and_then(|exe| exe.parent().map(|p| p.join("stan/prophet_model")))
-                .unwrap_or_else(|| PathBuf::from("stan/prophet_model")),
+                .and_then(|exe| exe.parent().map(|p| p.join(format!("stan/{}/{}", platform_dir, binary_name))))
+                .unwrap_or_else(|| PathBuf::from(format!("stan/{}/{}", platform_dir, binary_name))),
+            // Environment variable override
             std::env::var("PROPHET_MODEL_PATH")
                 .ok()
                 .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("stan/prophet_model")),
+                .unwrap_or_else(|| PathBuf::from(format!("stan/{}/{}", platform_dir, binary_name))),
         ];
 
         // Find the first path that exists

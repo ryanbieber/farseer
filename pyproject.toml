@@ -25,9 +25,9 @@ classifiers = [
 dependencies = [
     "polars>=0.20.0",
     "pyarrow>=10.0", # Required for polars-pandas conversion
-    "numpy>=1.20",
-    "matplotlib>=3.0",
-    "pandas>=2.0.3",
+    "numpy>=1.26.0",
+    "matplotlib>=3.9.0",
+    "pandas>=2.2.0",
 ]
 
 [project.optional-dependencies]

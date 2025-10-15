@@ -48,8 +48,12 @@ pub struct CmdStanOptimizer {
 
 impl CmdStanOptimizer {
     pub fn new(config: CmdStanConfig) -> Self {
+        let binary_name = Self::get_binary_name();
+        let platform_dir = Self::get_platform_dir();
+        let default_path = format!("stan/{}/{}", platform_dir, binary_name);
+        
         let model_path = Self::find_model_binary()
-            .unwrap_or_else(|| std::path::PathBuf::from("stan/prophet_model"));
+            .unwrap_or_else(|| std::path::PathBuf::from(default_path));
 
         Self {
             _config: config,
@@ -66,6 +70,10 @@ impl CmdStanOptimizer {
 
     /// Find the prophet model binary in common locations
     fn find_model_binary() -> Option<std::path::PathBuf> {
+        // Get platform-specific binary name and directory
+        let binary_name = Self::get_binary_name();
+        let platform_dir = Self::get_platform_dir();
+        
         // Check environment variable first
         if let Ok(path) = std::env::var("PROPHET_MODEL_PATH") {
             let p = std::path::PathBuf::from(&path);
@@ -76,12 +84,15 @@ impl CmdStanOptimizer {
 
         // Try various relative and absolute paths
         let candidates = vec![
-            // Relative to current working directory
-            "stan/prophet_model",
-            "./stan/prophet_model",
-            "../stan/prophet_model",
+            // Platform-specific directories (preferred)
+            format!("stan/{}/{}", platform_dir, binary_name),
+            format!("./stan/{}/{}", platform_dir, binary_name),
+            format!("../stan/{}/{}", platform_dir, binary_name),
+            // Legacy paths (backward compatibility)
+            format!("stan/{}", binary_name),
+            format!("./stan/{}", binary_name),
             // Try to find via cargo manifest dir (compile-time)
-            concat!(env!("CARGO_MANIFEST_DIR"), "/stan/prophet_model"),
+            format!("{}/stan/{}/{}", env!("CARGO_MANIFEST_DIR"), platform_dir, binary_name),
         ];
 
         for candidate in candidates {
@@ -92,6 +103,38 @@ impl CmdStanOptimizer {
         }
 
         None
+    }
+
+    /// Get the platform-specific binary name
+    fn get_binary_name() -> &'static str {
+        #[cfg(target_os = "windows")]
+        {
+            "prophet_model.exe"
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            "prophet_model"
+        }
+    }
+
+    /// Get the platform-specific directory
+    fn get_platform_dir() -> &'static str {
+        #[cfg(target_os = "windows")]
+        {
+            "windows"
+        }
+        #[cfg(target_os = "linux")]
+        {
+            "linux"
+        }
+        #[cfg(target_os = "macos")]
+        {
+            "macos"
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+        {
+            "linux" // Fallback to linux for other Unix-like systems
+        }
     }
 
     /// Optimize the Prophet model with the given data and initial parameters
