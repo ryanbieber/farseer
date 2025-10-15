@@ -221,7 +221,7 @@ impl Seer {
             }
         }
 
-        py.allow_threads(|| self.inner.fit(&data))
+        py.detach(|| self.inner.fit(&data))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         Ok(())
@@ -229,7 +229,7 @@ impl Seer {
 
     /// Make predictions (df=None uses training data like Prophet)
     #[pyo3(signature = (df=None))]
-    fn predict(&self, py: Python, df: Option<Bound<'_, PyAny>>) -> PyResult<PyObject> {
+    fn predict(&self, py: Python, df: Option<Bound<'_, PyAny>>) -> PyResult<Py<PyAny>> {
         use std::collections::HashMap;
 
         // If df is None, use history (training data) like Prophet
@@ -280,55 +280,55 @@ impl Seer {
         };
 
         let forecast = py
-            .allow_threads(|| self.inner.predict_with_data(&ds, cap, &regressors))
+            .detach(|| self.inner.predict_with_data(&ds, cap, &regressors))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
-        let pd = py.import_bound("pandas")?;
-        let dict = PyDict::new_bound(py);
+        let pd = py.import("pandas")?;
+        let dict = PyDict::new(py);
 
         // Add columns in Prophet's order
         dict.set_item("ds", forecast.ds)?;
-        dict.set_item("trend", forecast.trend.to_pyarray_bound(py))?;
-        dict.set_item("yhat_lower", forecast.yhat_lower.to_pyarray_bound(py))?;
-        dict.set_item("yhat_upper", forecast.yhat_upper.to_pyarray_bound(py))?;
-        dict.set_item("trend_lower", forecast.trend_lower.to_pyarray_bound(py))?;
-        dict.set_item("trend_upper", forecast.trend_upper.to_pyarray_bound(py))?;
+        dict.set_item("trend", forecast.trend.to_pyarray(py))?;
+        dict.set_item("yhat_lower", forecast.yhat_lower.to_pyarray(py))?;
+        dict.set_item("yhat_upper", forecast.yhat_upper.to_pyarray(py))?;
+        dict.set_item("trend_lower", forecast.trend_lower.to_pyarray(py))?;
+        dict.set_item("trend_upper", forecast.trend_upper.to_pyarray(py))?;
         dict.set_item(
             "additive_terms",
-            forecast.additive_terms.to_pyarray_bound(py),
+            forecast.additive_terms.to_pyarray(py),
         )?;
         dict.set_item(
             "additive_terms_lower",
-            forecast.additive_terms_lower.to_pyarray_bound(py),
+            forecast.additive_terms_lower.to_pyarray(py),
         )?;
         dict.set_item(
             "additive_terms_upper",
-            forecast.additive_terms_upper.to_pyarray_bound(py),
+            forecast.additive_terms_upper.to_pyarray(py),
         )?;
 
         // Always add weekly component and its bounds (zeros if not enabled)
-        dict.set_item("weekly", forecast.weekly.to_pyarray_bound(py))?;
-        dict.set_item("weekly_lower", forecast.weekly_lower.to_pyarray_bound(py))?;
-        dict.set_item("weekly_upper", forecast.weekly_upper.to_pyarray_bound(py))?;
+        dict.set_item("weekly", forecast.weekly.to_pyarray(py))?;
+        dict.set_item("weekly_lower", forecast.weekly_lower.to_pyarray(py))?;
+        dict.set_item("weekly_upper", forecast.weekly_upper.to_pyarray(py))?;
 
         // Always add yearly component and its bounds (zeros if not enabled)
-        dict.set_item("yearly", forecast.yearly.to_pyarray_bound(py))?;
-        dict.set_item("yearly_lower", forecast.yearly_lower.to_pyarray_bound(py))?;
-        dict.set_item("yearly_upper", forecast.yearly_upper.to_pyarray_bound(py))?;
+        dict.set_item("yearly", forecast.yearly.to_pyarray(py))?;
+        dict.set_item("yearly_lower", forecast.yearly_lower.to_pyarray(py))?;
+        dict.set_item("yearly_upper", forecast.yearly_upper.to_pyarray(py))?;
 
         dict.set_item(
             "multiplicative_terms",
-            forecast.multiplicative_terms.to_pyarray_bound(py),
+            forecast.multiplicative_terms.to_pyarray(py),
         )?;
         dict.set_item(
             "multiplicative_terms_lower",
-            forecast.multiplicative_terms_lower.to_pyarray_bound(py),
+            forecast.multiplicative_terms_lower.to_pyarray(py),
         )?;
         dict.set_item(
             "multiplicative_terms_upper",
-            forecast.multiplicative_terms_upper.to_pyarray_bound(py),
+            forecast.multiplicative_terms_upper.to_pyarray(py),
         )?;
-        dict.set_item("yhat", forecast.yhat.to_pyarray_bound(py))?;
+        dict.set_item("yhat", forecast.yhat.to_pyarray(py))?;
 
         let df = pd.call_method1("DataFrame", (dict,))?;
         Ok(df.into())
@@ -342,7 +342,7 @@ impl Seer {
         periods: usize,
         freq: Option<&str>,
         include_history: Option<bool>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         let freq = freq.unwrap_or("D");
         let include_history = include_history.unwrap_or(true);
 
@@ -351,15 +351,15 @@ impl Seer {
             .make_future_dates(periods, freq, include_history)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
-        let pd = py.import_bound("pandas")?;
+        let pd = py.import("pandas")?;
 
         // Convert date strings to pandas datetime objects
         // Use format='mixed' to handle both daily and hourly formats
-        let kwargs = PyDict::new_bound(py);
+        let kwargs = PyDict::new(py);
         kwargs.set_item("format", "mixed")?;
         let dates_converted = pd.call_method("to_datetime", (dates,), Some(&kwargs))?;
 
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
         dict.set_item("ds", dates_converted)?;
 
         let df = pd.call_method1("DataFrame", (dict,))?;
@@ -423,11 +423,11 @@ impl Seer {
     }
 
     /// Get model parameters
-    fn params(&self, py: Python) -> PyResult<PyObject> {
+    fn params(&self, py: Python) -> PyResult<Py<PyAny>> {
         let params = self.inner.get_params();
         let json_str = serde_json::to_string(&params)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-        let json = py.import_bound("json")?;
+        let json = py.import("json")?;
         Ok(json.call_method1("loads", (json_str,))?.into())
     }
 
