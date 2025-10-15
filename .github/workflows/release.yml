@@ -72,18 +72,15 @@ jobs:
       - name: Upload compiled Stan models
         uses: actions/upload-artifact@v4
         with:
-          name: stan-models-${{ matrix.os }}
+          name: stan-models-ubuntu-latest
           path: stan/
           retention-days: 1
 
-  # Build wheels for different platforms
+  # Build wheels for Linux only
   build-wheels:
-    name: Build wheels on ${{ matrix.os }}
+    name: Build wheels on Linux
     needs: compile-stan-models
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ubuntu-latest
     
     steps:
       - uses: actions/checkout@v4
@@ -98,19 +95,13 @@ jobs:
       - name: Copy Stan models to workspace
         shell: bash
         run: |
-          if [ "$RUNNER_OS" == "Linux" ]; then
-            cp -r stan-artifacts/stan-models-ubuntu-latest/* stan/ || true
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-            cp -r stan-artifacts/stan-models-macos-latest/* stan/ || true
-          elif [ "$RUNNER_OS" == "Windows" ]; then
-            cp -r stan-artifacts/stan-models-windows-latest/* stan/ || true
-          fi
+          cp -r stan-artifacts/stan-models-ubuntu-latest/* stan/
           ls -la stan/
       
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -118,15 +109,15 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.os == 'ubuntu-latest' && 'x86_64' || 'auto' }}
+          target: x86_64
           args: --release --out dist --find-interpreter
           sccache: 'true'
-          manylinux: ${{ matrix.os == 'ubuntu-latest' && 'auto' || 'off' }}
+          manylinux: auto
       
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
+          name: wheels-linux
           path: dist
           retention-days: 1
   
@@ -148,9 +139,7 @@ jobs:
       
       - name: Merge Stan models into stan directory
         run: |
-          cp -r stan-artifacts/stan-models-ubuntu-latest/* stan/ || true
-          cp -r stan-artifacts/stan-models-macos-latest/* stan/ || true
-          cp -r stan-artifacts/stan-models-windows-latest/* stan/ || true
+          cp -r stan-artifacts/stan-models-ubuntu-latest/* stan/
           ls -la stan/
       
       - name: Set up Python
@@ -187,9 +176,8 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: wheels-*
+          name: wheels-linux
           path: dist
-          merge-multiple: true
       
       - name: Download sdist
         uses: actions/download-artifact@v4
@@ -231,9 +219,8 @@ jobs:
       - name: Download all wheel artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: wheels-*
+          name: wheels-linux
           path: dist
-          merge-multiple: true
       
       - name: Download sdist
         uses: actions/download-artifact@v4
