@@ -73,4 +73,4 @@ python-source = "."
 # The Rust module will be named _seer and placed inside the seer package
 module-name = "seer._seer"
 # Include Stan model and related files
-include = ["stan/*", "seer/__version__.py"]
+include = ["stan/*"]

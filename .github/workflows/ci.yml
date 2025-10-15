@@ -85,13 +85,7 @@ jobs:
           print(f"✓ Binary installed at: {target_dir / 'prophet_model'}")
           print(f"  Size: {(target_dir / 'prophet_model').stat().st_size} bytes")
           
-          # Copy TBB libraries (Linux .so files only)
-          cmdstan_path = Path(cmdstanpy.cmdstan_path())
-          tbb_dir = cmdstan_path / "stan" / "lib" / "stan_math" / "lib" / "tbb"
-          if tbb_dir.exists():
-              for lib in tbb_dir.glob("*.so*"):
-                  shutil.copy2(lib, target_dir)
-              print(f"✓ TBB libraries copied to {target_dir}")
+          # Note: TBB libraries are not needed - they will be found from the system
           EOF
      
       - name: Build and install package
@@ -109,7 +103,7 @@ jobs:
      
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
         with:
           file: ./coverage.xml
           flags: unittests
@@ -118,8 +112,8 @@ jobs:
       - name: Run Rust tests
         run: cargo test --all-features
         env:
-          PROPHET_MODEL_PATH: ${{ github.workspace }}/stan/linux/prophet_model
-          LD_LIBRARY_PATH: ${{ github.workspace }}/stan/linux
+          PROPHET_MODEL_PATH: ${{ github.workspace }}/stan/prophet_model
+          LD_LIBRARY_PATH: ${{ github.workspace }}/stan
  
   lint:
     name: Lint

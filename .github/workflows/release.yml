@@ -60,17 +60,7 @@ jobs:
           print(f"✓ Binary installed at: {target_dir / target_name}")
           print(f"  Size: {(target_dir / target_name).stat().st_size} bytes")
           
-          # Copy TBB libraries (Linux .so files)
-          cmdstan_path = Path(cmdstanpy.cmdstan_path())
-          tbb_dir = cmdstan_path / "stan" / "lib" / "stan_math" / "lib" / "tbb"
-          
-          if tbb_dir.exists():
-              # Copy .so files (Linux)
-              for lib in tbb_dir.glob("*.so*"):
-                  shutil.copy2(lib, target_dir)
-                  print(f"  Copied {lib.name}")
-              
-              print(f"✓ TBB libraries copied to {target_dir}")
+          # Note: TBB libraries are not needed - they will be found from the system
           
           # Also copy cmdstan version for reference
           cmdstan_version_file = target_dir / "cmdstan_version.txt"
