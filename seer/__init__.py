@@ -564,4 +564,7 @@ class Seer(_Seer):
         return fig
 
 
-__all__ = ['Seer', '__version__']
+# Import utilities
+from .utilities import regressor_coefficients
+
+__all__ = ['Seer', 'regressor_coefficients', '__version__']

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct TimeSeriesData {
@@ -6,6 +7,7 @@ pub struct TimeSeriesData {
     pub y: Vec<f64>,
     pub cap: Option<Vec<f64>>,
     pub weights: Option<Vec<f64>>,
+    pub regressors: HashMap<String, Vec<f64>>,  // Additional regressor columns
 }
 
 impl TimeSeriesData {
@@ -48,7 +50,18 @@ impl TimeSeriesData {
             y,
             cap,
             weights,
+            regressors: HashMap::new(),
         })
+    }
+
+    pub fn with_regressor(mut self, name: String, values: Vec<f64>) -> crate::Result<Self> {
+        if values.len() != self.ds.len() {
+            return Err(crate::SeerError::DataValidation(
+                format!("regressor '{}' must have same length as ds", name),
+            ));
+        }
+        self.regressors.insert(name, values);
+        Ok(self)
     }
 
     pub fn len(&self) -> usize {
