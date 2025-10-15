@@ -8,7 +8,7 @@ version = "0.3.3"
 description = "Fast Bayesian time series forecasting in Rust, with Python bindings"
 authors = [{name = "Ryan Bieber", email = "ryan.bieber@protonmail.com"}]
 readme = "README.md"
-requires-python = ">=3.8,<3.14"
+requires-python = ">=3.11,<3.14"
 license = {text = "MIT"}
 keywords = ["forecasting", "time-series", "prophet", "bayesian", "rust"]
 classifiers = [
