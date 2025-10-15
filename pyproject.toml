@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "seer"
-version = "0.1.0"
+version = "0.2.0"
 description = "Fast Bayesian time series forecasting in Rust, with Python bindings"
 authors = [{name = "Ryan Bieber", email = "ryan.bieber@protonmail.com"}]
 readme = "README.md"
