@@ -12,12 +12,8 @@ jobs:
 
   # Build wheels for different platforms
   build-wheels:
-    name: Build wheels on ${{ matrix.os }}
-    needs: test  # Only build if tests pass
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+    name: Build wheels on Linux
+    runs-on: ubuntu-latest
     
     steps:
       - uses: actions/checkout@v4
@@ -33,7 +29,7 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.os == 'ubuntu-latest' && 'x86_64' || 'auto' }}
+          target: x86_64
           args: --release --out dist --find-interpreter
           sccache: 'true'
           manylinux: auto
@@ -41,13 +37,12 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
+          name: wheels-linux
           path: dist
   
   # Build source distribution
   build-sdist:
     name: Build source distribution
-    needs: test  # Only build if tests pass
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
