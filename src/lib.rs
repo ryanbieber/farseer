@@ -206,15 +206,18 @@ impl Seer {
         for regressor_name in regressor_names {
             if df_clean.hasattr(regressor_name.as_str())? {
                 let regressor_series = df_clean.getattr(regressor_name.as_str())?;
-                let regressor_values: Vec<f64> = regressor_series
-                    .call_method0("tolist")?
-                    .extract()?;
-                data = data.with_regressor(regressor_name.clone(), regressor_values)
-                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+                let regressor_values: Vec<f64> =
+                    regressor_series.call_method0("tolist")?.extract()?;
+                data = data
+                    .with_regressor(regressor_name.clone(), regressor_values)
+                    .map_err(|e| {
+                        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
+                    })?;
             } else {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    format!("Regressor '{}' not found in dataframe", regressor_name),
-                ));
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Regressor '{}' not found in dataframe",
+                    regressor_name
+                )));
             }
         }
 
@@ -228,7 +231,7 @@ impl Seer {
     #[pyo3(signature = (df=None))]
     fn predict(&self, py: Python, df: Option<Bound<'_, PyAny>>) -> PyResult<PyObject> {
         use std::collections::HashMap;
-        
+
         // If df is None, use history (training data) like Prophet
         let (ds, cap, regressors) = if let Some(df_val) = df {
             // Convert ds column to strings, handling datetime objects
@@ -250,14 +253,14 @@ impl Seer {
             for regressor_name in regressor_names {
                 if df_val.hasattr(regressor_name.as_str())? {
                     let regressor_series = df_val.getattr(regressor_name.as_str())?;
-                    let regressor_values: Vec<f64> = regressor_series
-                        .call_method0("tolist")?
-                        .extract()?;
+                    let regressor_values: Vec<f64> =
+                        regressor_series.call_method0("tolist")?.extract()?;
                     regressors_map.insert(regressor_name.clone(), regressor_values);
                 } else {
-                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                        format!("Regressor '{}' not found in prediction dataframe", regressor_name),
-                    ));
+                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                        "Regressor '{}' not found in prediction dataframe",
+                        regressor_name
+                    )));
                 }
             }
 

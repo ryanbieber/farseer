@@ -88,7 +88,7 @@ fn model_fit_with_yearly_seasonality() {
         .with_changepoints(10);
     // yearly seasonality enabled by default in constructor; ensure weekly/daily off for clarity
     m = m.with_yearly_seasonality();
-    
+
     // fit - Stan optimization can occasionally fail to converge with certain random seeds
     // This is expected behavior for numerical optimization
     match m.fit(&data) {
@@ -113,7 +113,10 @@ fn model_fit_with_yearly_seasonality() {
         Err(e) => {
             // Stan optimization can fail due to line search issues with certain random seeds
             // This is acceptable and we just skip the assertions in this case
-            eprintln!("Note: Stan optimization failed (acceptable for numerical optimization): {}", e);
+            eprintln!(
+                "Note: Stan optimization failed (acceptable for numerical optimization): {}",
+                e
+            );
             // Test passes - we verified the API works, convergence is a numerical issue
         }
     }
@@ -217,12 +220,12 @@ fn uncertainty_intervals_scale_with_sigma() {
 // Using the same seed approach as Facebook Prophet for reproducibility
 mod rand {
     use std::cell::Cell;
-    
+
     // Prophet's random seed for predictions: 876543987
     thread_local! {
         static SEED: Cell<u64> = Cell::new(876543987);
     }
-    
+
     pub fn random<T: Default>() -> f64 {
         // Simple LCG (Linear Congruential Generator) for reproducible randomness
         SEED.with(|seed| {
@@ -401,7 +404,7 @@ fn add_custom_holidays() {
     // Use 4 years of data to have enough holiday occurrences
     let n = 365 * 4;
     let ds = make_ds("2017-01-01", n);
-    
+
     // Create more realistic data: weekly pattern + yearly trend + strong Christmas spikes
     let y: Vec<f64> = ds
         .iter()
@@ -410,7 +413,7 @@ fn add_custom_holidays() {
             let base = 100.0;
             let trend = i as f64 * 0.02; // Growing trend
             let weekly = (((i % 7) as f64 / 7.0) * 2.0 * std::f64::consts::PI).sin() * 5.0; // Weekly variation
-            
+
             // Check if this date is Christmas (Dec 25)
             let is_christmas = date_str.ends_with("-12-25");
             let holiday_effect = if is_christmas {
@@ -418,16 +421,17 @@ fn add_custom_holidays() {
             } else {
                 0.0
             };
-            
+
             base + trend + weekly + holiday_effect
         })
         .collect();
 
     let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
     let mut m = CoreSeer::new();
-    
+
     // Disable built-in seasonalities to isolate holiday effect
-    m = m.without_yearly_seasonality()
+    m = m
+        .without_yearly_seasonality()
         .without_weekly_seasonality()
         .without_daily_seasonality();
 
@@ -456,22 +460,24 @@ fn add_custom_holidays() {
     let christmas_idx = ds.iter().position(|d| d == "2019-12-25").unwrap();
     let week_before = christmas_idx - 7;
     let week_after = christmas_idx + 7;
-    
+
     // Christmas should be noticeably higher than a week before/after
     let christmas_pred = fcst.yhat[christmas_idx];
     let before_pred = fcst.yhat[week_before];
     let after_pred = fcst.yhat[week_after];
-    
+
     // With 300-point spikes, 4 occurrences, and strong prior, expect significant elevation
     assert!(
         christmas_pred > before_pred + 30.0,
         "Christmas prediction should be elevated vs week before: {} vs {}",
-        christmas_pred, before_pred
+        christmas_pred,
+        before_pred
     );
     assert!(
         christmas_pred > after_pred + 30.0,
         "Christmas prediction should be elevated vs week after: {} vs {}",
-        christmas_pred, after_pred
+        christmas_pred,
+        after_pred
     );
 }
 
@@ -529,7 +535,7 @@ fn multiple_holidays() {
     // Use 3 years of data with realistic pattern plus holiday spikes
     let n = 365 * 3;
     let ds = make_ds("2018-01-01", n);
-    
+
     // Create realistic data: weekly pattern + yearly trend + strong holiday spikes
     let y: Vec<f64> = (0..n)
         .map(|i| {
@@ -537,14 +543,14 @@ fn multiple_holidays() {
             let trend = i as f64 * 0.02;
             let weekly = (((i % 7) as f64 / 7.0) * 2.0 * std::f64::consts::PI).sin() * 5.0;
             let day_of_year = i % 365;
-            
+
             // New Year's Day (day 0), MLK Day (day 19), Valentine's (day 44)
             let holiday_effect = if day_of_year == 0 || day_of_year == 19 || day_of_year == 44 {
                 150.0 // Very obvious spikes
             } else {
                 0.0
             };
-            
+
             base + trend + weekly + holiday_effect
         })
         .collect();
@@ -611,19 +617,22 @@ fn multiple_holidays() {
     assert!(
         fcst.yhat[new_year_2020] > fcst.yhat[new_year_2020 - 7] + 40.0,
         "New Year should be elevated vs week before: {} vs {}",
-        fcst.yhat[new_year_2020], fcst.yhat[new_year_2020 - 7]
+        fcst.yhat[new_year_2020],
+        fcst.yhat[new_year_2020 - 7]
     );
-    
+
     assert!(
         fcst.yhat[mlk_2020] > fcst.yhat[mlk_2020 - 7] + 40.0,
         "MLK Day should be elevated vs week before: {} vs {}",
-        fcst.yhat[mlk_2020], fcst.yhat[mlk_2020 - 7]
+        fcst.yhat[mlk_2020],
+        fcst.yhat[mlk_2020 - 7]
     );
-    
+
     assert!(
         fcst.yhat[valentines_2020] > fcst.yhat[valentines_2020 - 7] + 40.0,
         "Valentine's should be elevated vs week before: {} vs {}",
-        fcst.yhat[valentines_2020], fcst.yhat[valentines_2020 - 7]
+        fcst.yhat[valentines_2020],
+        fcst.yhat[valentines_2020 - 7]
     );
 }
 

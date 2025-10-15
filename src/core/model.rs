@@ -122,7 +122,7 @@ pub struct Seer {
 
     // Manual changepoints
     manual_changepoints: Option<Vec<String>>, // User-specified changepoint dates
-    specified_changepoints: bool,              // Whether changepoints were manually specified
+    specified_changepoints: bool,             // Whether changepoints were manually specified
 
     // Custom seasonalities registry
     seasonalities: Vec<SeasonalityConfig>,
@@ -383,13 +383,13 @@ impl Seer {
                         .iter()
                         .filter_map(|ds_str| parse_ds(ds_str))
                         .collect();
-                    
+
                     // Note: Unlike Prophet, we don't strictly validate that changepoints
                     // are within the training data range. This allows users to specify
                     // changepoints in gaps in the data or even slightly outside for
                     // forecasting purposes. The changepoint will simply not have an
                     // effect if it's outside the data range.
-                    
+
                     // Convert to t values (normalized time)
                     let mut t_change_vals: Vec<f64> = cp_dates
                         .iter()
@@ -403,15 +403,15 @@ impl Seer {
                             }
                         })
                         .collect();
-                    
+
                     // Sort and remove duplicates
                     t_change_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
                     t_change_vals.dedup_by(|a, b| (*a - *b).abs() < 1e-12);
-                    
+
                     // Filter out changepoints that are outside the [0, 1] normalized time range
                     // (these would be outside the history's time span)
                     t_change_vals.retain(|&t| (0.0..=1.0).contains(&t));
-                    
+
                     t_change_vals
                 }
             } else {
@@ -515,7 +515,7 @@ impl Seer {
             if let Some(regressor_values) = data.regressors.get(&config.name) {
                 // Compute standardization parameters
                 let mut updated_config = config.clone();
-                
+
                 // Check for unique values (for binary detection)
                 let mut unique_vals = Vec::new();
                 for &val in regressor_values {
@@ -536,8 +536,8 @@ impl Seer {
                             let mut sorted_unique = unique_vals.clone();
                             sorted_unique.sort_by(|a, b| a.partial_cmp(b).unwrap());
                             // Check if it's binary 0/1
-                            should_standardize = !(sorted_unique.len() == 2 
-                                && (sorted_unique[0] - 0.0).abs() < 1e-10 
+                            should_standardize = !(sorted_unique.len() == 2
+                                && (sorted_unique[0] - 0.0).abs() < 1e-10
                                 && (sorted_unique[1] - 1.0).abs() < 1e-10);
                         }
                     }
@@ -553,9 +553,11 @@ impl Seer {
 
                 let (mu, std) = if should_standardize {
                     let mean = regressor_values.iter().sum::<f64>() / regressor_values.len() as f64;
-                    let variance = regressor_values.iter()
+                    let variance = regressor_values
+                        .iter()
                         .map(|&x| (x - mean).powi(2))
-                        .sum::<f64>() / regressor_values.len() as f64;
+                        .sum::<f64>()
+                        / regressor_values.len() as f64;
                     let std_dev = variance.sqrt();
                     (mean, std_dev.max(1.0)) // Ensure std is at least 1.0 to avoid division by zero
                 } else {
@@ -566,19 +568,19 @@ impl Seer {
                 updated_config.std = std;
 
                 // Standardize regressor values
-                let standardized: Vec<f64> = regressor_values.iter()
-                    .map(|&x| (x - mu) / std)
-                    .collect();
+                let standardized: Vec<f64> =
+                    regressor_values.iter().map(|&x| (x - mu) / std).collect();
 
                 // Add as a single column feature
-                let regressor_feature: Vec<Vec<f64>> = standardized.iter()
-                    .map(|&v| vec![v])
-                    .collect();
+                let regressor_feature: Vec<Vec<f64>> =
+                    standardized.iter().map(|&v| vec![v]).collect();
 
                 let cols = 1; // Regressors are always single columns
                 match updated_config.mode {
                     SeasonalityMode::Additive => regressor_blocks_additive.push(regressor_feature),
-                    SeasonalityMode::Multiplicative => regressor_blocks_multiplicative.push(regressor_feature),
+                    SeasonalityMode::Multiplicative => {
+                        regressor_blocks_multiplicative.push(regressor_feature)
+                    }
                 }
 
                 let col_end = col_start + cols;
@@ -654,10 +656,7 @@ impl Seer {
         for block in &holiday_blocks {
             for i in block.start..block.end {
                 // Find the corresponding holiday config
-                let config = self.holidays
-                    .iter()
-                    .find(|c| c.name == block.name)
-                    .unwrap();
+                let config = self.holidays.iter().find(|c| c.name == block.name).unwrap();
                 match config.mode {
                     SeasonalityMode::Additive => s_a[i] = 1.0,
                     SeasonalityMode::Multiplicative => s_m[i] = 1.0,
@@ -669,7 +668,8 @@ impl Seer {
         for block in &regressor_blocks {
             for i in block.start..block.end {
                 // Find the corresponding regressor config
-                let config = self.regressors
+                let config = self
+                    .regressors
                     .iter()
                     .find(|c| c.name == block.name)
                     .unwrap();
@@ -702,7 +702,7 @@ impl Seer {
 
         // Prepare prior scales for regressors
         let mut sigmas = vec![10.0; total_features]; // Default prior scale
-        
+
         // Set custom prior scales for seasonality features
         for block in &season_blocks {
             let config = all_seasonalities
@@ -711,19 +711,17 @@ impl Seer {
                 .unwrap();
             sigmas[block.start..block.end].fill(config.prior_scale);
         }
-        
+
         // Set custom prior scales for holiday features
         for block in &holiday_blocks {
-            let config = self.holidays
-                .iter()
-                .find(|c| c.name == block.name)
-                .unwrap();
+            let config = self.holidays.iter().find(|c| c.name == block.name).unwrap();
             sigmas[block.start..block.end].fill(config.prior_scale);
         }
 
         // Set custom prior scales for regressor features
         for block in &self.regressor_blocks {
-            let config = self.regressors
+            let config = self
+                .regressors
                 .iter()
                 .find(|c| c.name == block.name)
                 .unwrap();
@@ -1013,7 +1011,8 @@ impl Seer {
                         }
 
                         // Standardize regressor values using stored mu and std
-                        let standardized: Vec<f64> = regressor_values.iter()
+                        let standardized: Vec<f64> = regressor_values
+                            .iter()
                             .map(|&x| (x - config.mu) / config.std)
                             .collect();
 
@@ -1628,8 +1627,8 @@ impl Seer {
             weekly_seasonality: params["weekly_seasonality"].as_bool().unwrap_or(true),
             daily_seasonality: params["daily_seasonality"].as_bool().unwrap_or(false),
             seasonality_mode,
-            manual_changepoints: None,        // Manual changepoints not yet serialized
-            specified_changepoints: false,     // Will be false when deserializing
+            manual_changepoints: None, // Manual changepoints not yet serialized
+            specified_changepoints: false, // Will be false when deserializing
             seasonalities,
             holidays,
             country_holidays,
