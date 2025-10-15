@@ -65,7 +65,7 @@ jobs:
           # Also copy cmdstan version for reference
           cmdstan_version_file = target_dir / "cmdstan_version.txt"
           with open(cmdstan_version_file, "w") as f:
-              f.write(cmdstanpy.cmdstan_version())
+              f.write(str(cmdstanpy.cmdstan_version()))
           print(f"✓ CmdStan version: {cmdstanpy.cmdstan_version()}")
           EOF
       
