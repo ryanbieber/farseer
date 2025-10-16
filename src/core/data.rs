@@ -18,14 +18,14 @@ impl TimeSeriesData {
         weights: Option<Vec<f64>>,
     ) -> crate::Result<Self> {
         if ds.len() != y.len() {
-            return Err(crate::SeerError::DataValidation(
+            return Err(crate::FarseerError::DataValidation(
                 "ds and y must have same length".to_string(),
             ));
         }
 
         if let Some(ref cap) = cap {
             if cap.len() != ds.len() {
-                return Err(crate::SeerError::DataValidation(
+                return Err(crate::FarseerError::DataValidation(
                     "cap must have same length as ds".to_string(),
                 ));
             }
@@ -33,13 +33,13 @@ impl TimeSeriesData {
 
         if let Some(ref weights) = weights {
             if weights.len() != ds.len() {
-                return Err(crate::SeerError::DataValidation(
+                return Err(crate::FarseerError::DataValidation(
                     "weights must have same length as ds".to_string(),
                 ));
             }
             // Validate weights are non-negative
             if weights.iter().any(|&w| w < 0.0) {
-                return Err(crate::SeerError::DataValidation(
+                return Err(crate::FarseerError::DataValidation(
                     "weights must be non-negative".to_string(),
                 ));
             }
@@ -56,7 +56,7 @@ impl TimeSeriesData {
 
     pub fn with_regressor(mut self, name: String, values: Vec<f64>) -> crate::Result<Self> {
         if values.len() != self.ds.len() {
-            return Err(crate::SeerError::DataValidation(format!(
+            return Err(crate::FarseerError::DataValidation(format!(
                 "regressor '{}' must have same length as ds",
                 name
             )));

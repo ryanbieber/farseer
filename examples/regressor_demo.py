@@ -7,7 +7,7 @@ compatible with Facebook Prophet's regressor API.
 
 import pandas as pd
 import numpy as np
-from seer import Seer, regressor_coefficients
+from farseer import Seer, regressor_coefficients
 
 # Set random seed for reproducibility
 np.random.seed(42)
@@ -81,7 +81,7 @@ print("\n" + "=" * 70)
 print("FITTING MODEL WITH REGRESSORS")
 print("=" * 70)
 
-m = Seer(
+m = Farseer(
     yearly_seasonality=True,
     weekly_seasonality=True,
     daily_seasonality=False

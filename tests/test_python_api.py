@@ -10,7 +10,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import tempfile
 import os
-from seer import Seer
+from farseer import Farseer
 
 
 class TestBasicFunctionality:
@@ -18,12 +18,12 @@ class TestBasicFunctionality:
     
     def test_model_creation(self):
         """Test basic model instantiation"""
-        model = Seer()
+        model = Farseer()
         assert model is not None
         
     def test_model_with_parameters(self):
         """Test model creation with custom parameters"""
-        model = Seer(
+        model = Farseer(
             growth='linear',
             n_changepoints=10,
             changepoint_range=0.9,
@@ -47,7 +47,7 @@ class TestBasicFunctionality:
             'y': np.arange(100) * 0.5 + 10 + np.random.randn(100) * 0.5
         })
         
-        model = Seer()
+        model = Farseer()
         model.fit(df)
         
         params = model.params()
@@ -60,7 +60,7 @@ class TestBasicFunctionality:
             'y': np.arange(100) * 0.5 + 10
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df)
         
         future = model.make_future_dataframe(periods=30)
@@ -79,7 +79,7 @@ class TestBasicFunctionality:
             'y': [10 + i * 0.5 for i in range(50)]
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df)
         
         future = model.make_future_dataframe(periods=10)
@@ -98,7 +98,7 @@ class TestTrendTypes:
             'y': np.arange(50) * 2 + 10
         })
         
-        model = Seer(
+        model = Farseer(
             growth='linear',
             yearly_seasonality=False,
             weekly_seasonality=False
@@ -123,7 +123,7 @@ class TestTrendTypes:
             'cap': [100] * 50
         })
         
-        model = Seer(
+        model = Farseer(
             growth='logistic',
             yearly_seasonality=False,
             weekly_seasonality=False
@@ -143,7 +143,7 @@ class TestTrendTypes:
             'y': [10 + np.random.randn() * 0.1 for _ in range(50)]
         })
         
-        model = Seer(
+        model = Farseer(
             growth='flat',
             yearly_seasonality=False,
             weekly_seasonality=False
@@ -172,7 +172,7 @@ class TestSeasonality:
         
         df = pd.DataFrame({'ds': dates, 'y': y})
         
-        model = Seer(
+        model = Farseer(
             yearly_seasonality=True,
             weekly_seasonality=False,
             daily_seasonality=False
@@ -192,7 +192,7 @@ class TestSeasonality:
         
         df = pd.DataFrame({'ds': dates, 'y': y})
         
-        model = Seer(
+        model = Farseer(
             yearly_seasonality=False,
             weekly_seasonality=True,
             daily_seasonality=False
@@ -212,7 +212,7 @@ class TestSeasonality:
             'y': np.arange(100) * 0.5 + 10 + np.sin(np.arange(100) * 2 * np.pi / 7) * 2
         })
         
-        model = Seer(
+        model = Farseer(
             seasonality_mode='additive',
             weekly_seasonality=True,
             yearly_seasonality=False
@@ -229,7 +229,7 @@ class TestSeasonality:
             'y': (np.arange(100) * 0.5 + 10) * (1 + np.sin(np.arange(100) * 2 * np.pi / 7) * 0.1)
         })
         
-        model = Seer(
+        model = Farseer(
             seasonality_mode='multiplicative',
             weekly_seasonality=True,
             yearly_seasonality=False
@@ -250,7 +250,7 @@ class TestCustomSeasonality:
             'y': np.arange(365) * 0.1 + 10
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.add_seasonality(
             name='monthly',
             period=30.5,
@@ -271,7 +271,7 @@ class TestCustomSeasonality:
             'y': np.arange(100) * 0.1 + 10
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.add_seasonality(
             name='custom',
             period=15.0,
@@ -290,7 +290,7 @@ class TestCustomSeasonality:
             'y': np.arange(100) * 0.1 + 10
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.add_seasonality(
             name='custom',
             period=15.0,
@@ -309,7 +309,7 @@ class TestCustomSeasonality:
             'y': np.arange(365) * 0.1 + 10
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.add_seasonality('monthly', period=30.5, fourier_order=5)
         model.add_seasonality('quarterly', period=91.25, fourier_order=3)
         model.fit(df)
@@ -331,7 +331,7 @@ class TestHolidays:
             'y': np.arange(365) * 0.1 + 10
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.add_holidays(
             'christmas',
             ['2020-12-25'],
@@ -352,7 +352,7 @@ class TestHolidays:
             'y': np.arange(365) * 0.1 + 10
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.add_holidays(
             'newyear',
             ['2020-01-01'],
@@ -372,7 +372,7 @@ class TestHolidays:
             'y': np.arange(730) * 0.1 + 10
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.add_holidays(
             'christmas',
             ['2019-12-25', '2020-12-25'],
@@ -395,7 +395,7 @@ class TestFutureDataframe:
             'y': np.arange(100)
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df)
         
         future = model.make_future_dataframe(periods=30, freq='D')
@@ -408,7 +408,7 @@ class TestFutureDataframe:
             'y': np.arange(100)
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df)
         
         future = model.make_future_dataframe(periods=30, freq='D', include_history=False)
@@ -421,7 +421,7 @@ class TestFutureDataframe:
             'y': np.arange(100)
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df)
         
         future = model.make_future_dataframe(periods=24, freq='h')
@@ -434,7 +434,7 @@ class TestFutureDataframe:
             'y': np.arange(100)
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df)
         
         future = model.make_future_dataframe(periods=10, freq='W')
@@ -448,7 +448,7 @@ class TestFutureDataframe:
             'y': np.arange(100) * 0.5 + 10 + np.random.randn(100) * 0.1
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df)
         
         # Create future dataframe with history
@@ -502,7 +502,7 @@ class TestFutureDataframe:
             'y': np.sin(np.arange(168) * 2 * np.pi / 24) + 10
         })
         
-        model_hourly = Seer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=True)
+        model_hourly = Farseer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=True)
         model_hourly.fit(df_hourly)
         
         future_hourly = model_hourly.make_future_dataframe(periods=24, freq='h')
@@ -520,7 +520,7 @@ class TestFutureDataframe:
             'y': np.arange(24) * 2 + 100
         })
         
-        model_monthly = Seer(yearly_seasonality=True, weekly_seasonality=False)
+        model_monthly = Farseer(yearly_seasonality=True, weekly_seasonality=False)
         model_monthly.fit(df_monthly)
         
         future_monthly = model_monthly.make_future_dataframe(periods=12, freq='MS')
@@ -548,7 +548,7 @@ class TestUncertaintyIntervals:
             'y': np.arange(100) * 0.5 + 10 + np.random.randn(100) * 2
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df)
         
         params = model.params()
@@ -561,7 +561,7 @@ class TestUncertaintyIntervals:
             'y': np.arange(100) * 0.5 + 10
         })
         
-        model = Seer(
+        model = Farseer(
             interval_width=0.95,
             yearly_seasonality=False,
             weekly_seasonality=False
@@ -578,7 +578,7 @@ class TestUncertaintyIntervals:
             'y': np.arange(100) * 0.5 + 10 + np.random.randn(100) * 1
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df)
         
         future = model.make_future_dataframe(periods=30)
@@ -599,7 +599,7 @@ class TestModelPersistence:
             'y': np.arange(50) * 0.5 + 10
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df)
         
         json_str = model.to_json()
@@ -614,7 +614,7 @@ class TestModelPersistence:
             'y': np.arange(50) * 0.5 + 10
         })
         
-        model1 = Seer(
+        model1 = Farseer(
             n_changepoints=15,
             yearly_seasonality=False,
             weekly_seasonality=False
@@ -622,7 +622,7 @@ class TestModelPersistence:
         model1.fit(df)
         
         json_str = model1.to_json()
-        model2 = Seer.from_json(json_str)
+        model2 = Farseer.from_json(json_str)
         
         params2 = model2.params()
         assert params2['n_changepoints'] == 15
@@ -635,7 +635,7 @@ class TestModelPersistence:
             'y': np.arange(50) * 0.5 + 10
         })
         
-        model1 = Seer(
+        model1 = Farseer(
             n_changepoints=20,
             yearly_seasonality=False,
             weekly_seasonality=False
@@ -647,7 +647,7 @@ class TestModelPersistence:
         
         try:
             model1.save(temp_path)
-            model2 = Seer.load(temp_path)
+            model2 = Farseer.load(temp_path)
             
             params2 = model2.params()
             assert params2['n_changepoints'] == 20
@@ -663,7 +663,7 @@ class TestModelPersistence:
             'y': np.arange(50) * 0.5 + 10
         })
         
-        model1 = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model1 = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model1.fit(df)
         
         future = pd.DataFrame({
@@ -673,7 +673,7 @@ class TestModelPersistence:
         
         # Serialize and deserialize
         json_str = model1.to_json()
-        model2 = Seer.from_json(json_str)
+        model2 = Farseer.from_json(json_str)
         forecast2 = model2.predict(future)
         
         # Predictions should be identical (or very close)
@@ -702,7 +702,7 @@ class TestMethodChaining:
             'y': np.arange(100) * 0.1 + 10
         })
         
-        model = (Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = (Farseer(yearly_seasonality=False, weekly_seasonality=False)
                 .add_seasonality('monthly', period=30.5, fourier_order=5)
                 .add_seasonality('quarterly', period=91.25, fourier_order=3))
         
@@ -717,7 +717,7 @@ class TestMethodChaining:
             'y': np.arange(365) * 0.1 + 10
         })
         
-        model = (Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = (Farseer(yearly_seasonality=False, weekly_seasonality=False)
                 .add_holidays('christmas', ['2020-12-25'])
                 .add_holidays('newyear', ['2020-01-01']))
         
@@ -733,7 +733,7 @@ class TestErrorHandling:
         """Test error when required columns are missing"""
         df = pd.DataFrame({'date': pd.date_range('2020-01-01', periods=10)})
         
-        model = Seer()
+        model = Farseer()
         with pytest.raises(ValueError, match="must have 'ds' and 'y' columns"):
             model.fit(df)
             
@@ -743,25 +743,25 @@ class TestErrorHandling:
             'ds': pd.date_range('2020-01-01', periods=10, freq='D')
         })
         
-        model = Seer()
+        model = Farseer()
         with pytest.raises(Exception):  # Should raise RuntimeError from Rust
             model.predict(df)
             
     def test_make_future_before_fit(self):
         """Test error when making future dataframe before fitting"""
-        model = Seer()
+        model = Farseer()
         with pytest.raises(Exception):  # Should raise RuntimeError from Rust
             model.make_future_dataframe(periods=10)
             
     def test_invalid_growth_type(self):
         """Test error with invalid growth type"""
         with pytest.raises(Exception):  # Should raise ValueError from Rust
-            Seer(growth='invalid')
+            Farseer(growth='invalid')
             
     def test_invalid_seasonality_mode(self):
         """Test error with invalid seasonality mode"""
         with pytest.raises(Exception):  # Should raise ValueError from Rust
-            Seer(seasonality_mode='invalid')
+            Farseer(seasonality_mode='invalid')
 
 
 class TestEdgeCases:
@@ -774,7 +774,7 @@ class TestEdgeCases:
             'y': [10]
         })
         
-        model = Seer(
+        model = Farseer(
             n_changepoints=0,
             yearly_seasonality=False,
             weekly_seasonality=False
@@ -791,7 +791,7 @@ class TestEdgeCases:
             'y': [10 + i * 0.2 + np.sin(i/3) * 0.5 for i in range(50)]  # Add slight variation
         })
         
-        model = Seer(
+        model = Farseer(
             n_changepoints=1,  # Use minimal changepoints for short series
             yearly_seasonality=False,
             weekly_seasonality=False
@@ -809,7 +809,7 @@ class TestEdgeCases:
             'y': [10.0] * 50
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df)
         
         future = model.make_future_dataframe(periods=10)
@@ -835,7 +835,7 @@ class TestRealWorldScenarios:
         
         df = pd.DataFrame({'ds': dates, 'y': y})
         
-        model = Seer(
+        model = Farseer(
             yearly_seasonality=False,
             weekly_seasonality=True,
             daily_seasonality=False
@@ -863,7 +863,7 @@ class TestRealWorldScenarios:
         
         df = pd.DataFrame({'ds': dates, 'y': y})
         
-        model = Seer(
+        model = Farseer(
             yearly_seasonality=True,
             weekly_seasonality=False,
             daily_seasonality=False,
@@ -891,7 +891,7 @@ class TestRealWorldScenarios:
         
         df = pd.DataFrame({'ds': dates, 'y': y})
         
-        model = Seer(
+        model = Farseer(
             yearly_seasonality=False,
             weekly_seasonality=True
         )
@@ -925,7 +925,7 @@ class TestRealWorldScenarios:
         
         df = pd.DataFrame({'ds': dates, 'y': y})
         
-        model = Seer(
+        model = Farseer(
             yearly_seasonality=False,
             weekly_seasonality=False,
             daily_seasonality=True

@@ -4,7 +4,7 @@ This shows how to add additional features (regressors) to improve forecasts.
 """
 import pandas as pd
 import numpy as np
-from seer import Seer
+from farseer import Seer
 
 # Create sample data
 np.random.seed(42)
@@ -38,7 +38,7 @@ print(df.head(10))
 print("\n" + "="*60 + "\n")
 
 # Create and configure model
-m = Seer()
+m = Farseer()
 
 # Add regressors
 # Temperature is continuous -> will be standardized automatically

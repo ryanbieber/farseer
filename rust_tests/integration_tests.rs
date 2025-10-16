@@ -1,4 +1,4 @@
-use seer::core::{self, Seer as CoreSeer, TimeSeriesData, TrendType};
+use farseer::core::{self, Seer as CoreFarseer, TimeSeriesData, TrendType};
 
 fn make_ds(start: &str, n: usize) -> Vec<String> {
     let start_date = chrono::NaiveDate::parse_from_str(start, "%Y-%m-%d").unwrap();
@@ -83,7 +83,7 @@ fn model_fit_with_yearly_seasonality() {
         .collect();
 
     let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
-    let mut m = CoreSeer::new()
+    let mut m = CoreFarseer::new()
         .with_trend(TrendType::Linear)
         .with_changepoints(10);
     // yearly seasonality enabled by default in constructor; ensure weekly/daily off for clarity
@@ -127,7 +127,7 @@ fn future_dates_daily_len_and_contiguity() {
     let ds = make_ds("2020-01-01", 10);
     let y: Vec<f64> = (0..10).map(|i| i as f64).collect();
     let data = TimeSeriesData::new(ds.clone(), y, None, None).unwrap();
-    let mut m = CoreSeer::new();
+    let mut m = CoreFarseer::new();
     m.fit(&data).unwrap();
     let fut = m.make_future_dates(5, "D", true).unwrap();
     assert_eq!(fut.len(), 15);
@@ -182,7 +182,7 @@ fn model_logistic_growth() {
     let cap = vec![cap_val; n];
 
     let data = TimeSeriesData::new(ds.clone(), y.clone(), Some(cap), None).unwrap();
-    let mut m = CoreSeer::new()
+    let mut m = CoreFarseer::new()
         .with_trend(TrendType::Logistic)
         .with_changepoints(5);
     m.fit(&data).unwrap();
@@ -200,7 +200,7 @@ fn uncertainty_intervals_scale_with_sigma() {
     let ds = make_ds("2020-01-01", n);
     let y: Vec<f64> = (0..n).map(|i| 10.0 + 0.1 * i as f64).collect();
     let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
-    let mut m = CoreSeer::new();
+    let mut m = CoreFarseer::new();
     m.fit(&data).unwrap();
     let fcst = m.predict(&ds).unwrap();
 
@@ -253,7 +253,7 @@ fn add_custom_seasonality() {
         .collect();
 
     let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
-    let mut m = CoreSeer::new();
+    let mut m = CoreFarseer::new();
     // Disable default seasonalities
     m = m.without_yearly_seasonality().without_weekly_seasonality();
 
@@ -291,7 +291,7 @@ fn multiplicative_seasonality_mode() {
         .collect();
 
     let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
-    let mut m = CoreSeer::new();
+    let mut m = CoreFarseer::new();
     m = m.without_yearly_seasonality().without_daily_seasonality();
 
     // Add weekly seasonality in multiplicative mode
@@ -335,7 +335,7 @@ fn mixed_additive_and_multiplicative_seasonality() {
         .collect();
 
     let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
-    let mut m = CoreSeer::new();
+    let mut m = CoreFarseer::new();
     m = m
         .without_yearly_seasonality()
         .without_weekly_seasonality()
@@ -365,7 +365,7 @@ fn mixed_additive_and_multiplicative_seasonality() {
 
 #[test]
 fn invalid_seasonality_mode_returns_error() {
-    let mut m = CoreSeer::new();
+    let mut m = CoreFarseer::new();
     let result = m.add_seasonality("test", 10.0, 3, None, Some("invalid"));
     assert!(result.is_err());
     assert!(result
@@ -381,7 +381,7 @@ fn seasonality_with_prior_scale() {
     let y: Vec<f64> = (0..n).map(|i| 10.0 + 0.1 * i as f64).collect();
 
     let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
-    let mut m = CoreSeer::new();
+    let mut m = CoreFarseer::new();
     m = m.without_yearly_seasonality().without_weekly_seasonality();
 
     // Add custom seasonality with prior scale
@@ -427,7 +427,7 @@ fn add_custom_holidays() {
         .collect();
 
     let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
-    let mut m = CoreSeer::new();
+    let mut m = CoreFarseer::new();
 
     // Disable built-in seasonalities to isolate holiday effect
     m = m
@@ -499,7 +499,7 @@ fn holidays_with_windows() {
         .collect();
 
     let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
-    let mut m = CoreSeer::new();
+    let mut m = CoreFarseer::new();
     m = m.without_yearly_seasonality().without_weekly_seasonality();
 
     // Add holiday with 2-day window on each side
@@ -556,7 +556,7 @@ fn multiple_holidays() {
         .collect();
 
     let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
-    let mut m = CoreSeer::new();
+    let mut m = CoreFarseer::new();
     m = m.without_yearly_seasonality(); // Keep weekly to capture that pattern
 
     // Add multiple holidays for all 3 years with strong priors
@@ -638,7 +638,7 @@ fn multiple_holidays() {
 
 #[test]
 fn holiday_invalid_mode_returns_error() {
-    let mut m = CoreSeer::new();
+    let mut m = CoreFarseer::new();
     let result = m.add_holidays(
         "test",
         vec!["2020-01-01".to_string()],
@@ -656,7 +656,7 @@ fn holiday_invalid_mode_returns_error() {
 
 #[test]
 fn add_country_holidays_stores_country() {
-    let mut m = CoreSeer::new();
+    let mut m = CoreFarseer::new();
     m.add_country_holidays("US").unwrap();
 
     // Country holidays feature requires Python integration to actually fetch dates
@@ -673,7 +673,7 @@ fn params_includes_complete_state() {
     let y: Vec<f64> = (0..n).map(|i| 10.0 + 0.1 * i as f64).collect();
     let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
 
-    let mut m = CoreSeer::new();
+    let mut m = CoreFarseer::new();
     m.fit(&data).unwrap();
 
     let params = m.get_params();
@@ -700,7 +700,7 @@ fn serialization_round_trip() {
     let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
 
     // Create and fit model
-    let mut m1 = CoreSeer::new()
+    let mut m1 = CoreFarseer::new()
         .with_trend(TrendType::Linear)
         .with_changepoints(5);
     m1.fit(&data).unwrap();
@@ -710,7 +710,7 @@ fn serialization_round_trip() {
     assert!(!json.is_empty());
 
     // Deserialize
-    let m2 = CoreSeer::from_json(&json).unwrap();
+    let m2 = CoreFarseer::from_json(&json).unwrap();
 
     // Check configuration matches via get_params
     let params1 = m1.get_params();
@@ -728,12 +728,12 @@ fn serialization_preserves_fitted_parameters() {
     let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
 
     // Fit original model
-    let mut m1 = CoreSeer::new();
+    let mut m1 = CoreFarseer::new();
     m1.fit(&data).unwrap();
 
     // Serialize and deserialize
     let json = m1.to_json().unwrap();
-    let m2 = CoreSeer::from_json(&json).unwrap();
+    let m2 = CoreFarseer::from_json(&json).unwrap();
 
     // Check fitted parameters match (approximately, due to JSON serialization precision)
     let params1 = m1.get_params();
@@ -779,7 +779,7 @@ fn serialization_with_custom_components() {
     let data = TimeSeriesData::new(ds.clone(), y.clone(), None, None).unwrap();
 
     // Create model with custom seasonality and holidays
-    let mut m1 = CoreSeer::new();
+    let mut m1 = CoreFarseer::new();
     m1.add_seasonality("monthly", 30.0, 5, None, None).unwrap();
     m1.add_holidays(
         "test_holiday",
@@ -794,7 +794,7 @@ fn serialization_with_custom_components() {
 
     // Serialize and deserialize
     let json = m1.to_json().unwrap();
-    let m2 = CoreSeer::from_json(&json).unwrap();
+    let m2 = CoreFarseer::from_json(&json).unwrap();
 
     // Check custom components are preserved
     let params = m2.get_params();
@@ -809,16 +809,16 @@ fn serialization_with_custom_components() {
 
 #[test]
 fn set_seasonality_mode() {
-    let m = CoreSeer::new().with_seasonality_mode("multiplicative");
+    let m = CoreFarseer::new().with_seasonality_mode("multiplicative");
     assert!(m.is_ok());
 
-    let m_invalid = CoreSeer::new().with_seasonality_mode("invalid");
+    let m_invalid = CoreFarseer::new().with_seasonality_mode("invalid");
     assert!(m_invalid.is_err());
 }
 
 #[test]
 fn set_interval_width() {
-    let m = CoreSeer::new().with_interval_width(0.95);
+    let m = CoreFarseer::new().with_interval_width(0.95);
     let params = m.get_params();
     assert_eq!(params["interval_width"], 0.95);
 }

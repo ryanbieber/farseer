@@ -7,7 +7,7 @@ Ensures the ds column is properly converted to datetime and not NaT
 import pandas as pd
 import polars as pl
 import numpy as np
-from seer import Seer
+from farseer import Farseer
 
 
 class TestDsColumnDatetime:
@@ -22,7 +22,7 @@ class TestDsColumnDatetime:
         })
         
         # Fit model
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False)
         model.fit(df)
         
         # Make predictions
@@ -46,7 +46,7 @@ class TestDsColumnDatetime:
         })
         
         # Fit model
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False)
         model.fit(df)
         
         # Make predictions
@@ -69,7 +69,7 @@ class TestDsColumnDatetime:
         })
         
         # Fit model
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False)
         model.fit(df)
         
         # Create custom future dates
@@ -95,7 +95,7 @@ class TestDsColumnDatetime:
         })
         
         # Fit and predict
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False)
         model.fit(df)
         forecast = model.predict(model.make_future_dataframe(periods=10))
         
@@ -118,7 +118,7 @@ class TestDsColumnDatetime:
         })
         
         # Fit Seer model
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False)
         model.fit(df)
         
         # Get forecast
@@ -150,7 +150,7 @@ class TestDsColumnDatetime:
         })
         
         # Fit and predict
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False)
         model.fit(df)
         
         forecast = model.predict(model.make_future_dataframe(periods=10))

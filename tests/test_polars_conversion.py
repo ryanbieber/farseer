@@ -11,7 +11,7 @@ import pandas as pd
 import polars as pl
 import numpy as np
 from datetime import datetime
-from seer import Seer
+from farseer import Farseer
 
 
 class TestPolarsPandasConversion:
@@ -62,8 +62,8 @@ class TestPolarsPandasConversion:
         })
         
         # Both should work with Seer
-        model_pandas = Seer(yearly_seasonality=False, weekly_seasonality=False)
-        model_polars = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model_pandas = Farseer(yearly_seasonality=False, weekly_seasonality=False)
+        model_polars = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         
         model_pandas.fit(df_pandas)
         model_polars.fit(df_polars)
@@ -90,13 +90,13 @@ class TestSeerForecastEquivalence:
         df_polars = pl.from_pandas(df_pandas)
         
         # Fit models
-        model_pandas = Seer(
+        model_pandas = Farseer(
             growth='linear',
             yearly_seasonality=False,
             weekly_seasonality=False,
             n_changepoints=0  # No changepoints for deterministic test
         )
-        model_polars = Seer(
+        model_polars = Farseer(
             growth='linear',
             yearly_seasonality=False,
             weekly_seasonality=False,
@@ -151,13 +151,13 @@ class TestSeerForecastEquivalence:
         df_polars = pl.from_pandas(df_pandas)
         
         # Fit models with seasonality
-        model_pandas = Seer(
+        model_pandas = Farseer(
             growth='linear',
             yearly_seasonality=True,
             weekly_seasonality=True,
             seasonality_mode='additive'
         )
-        model_polars = Seer(
+        model_polars = Farseer(
             growth='linear',
             yearly_seasonality=True,
             weekly_seasonality=True,
@@ -217,12 +217,12 @@ class TestSeerForecastEquivalence:
         })
         df_polars = pl.from_pandas(df_pandas)
         
-        model_pandas = Seer(
+        model_pandas = Farseer(
             growth='logistic',
             yearly_seasonality=False,
             weekly_seasonality=False
         )
-        model_polars = Seer(
+        model_polars = Farseer(
             growth='logistic',
             yearly_seasonality=False,
             weekly_seasonality=False
@@ -285,7 +285,7 @@ class TestPolarsSpecificFeatures:
             'y': range(100)
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df)
         
         future = model.make_future_dataframe(periods=10)
@@ -316,7 +316,7 @@ class TestPolarsSpecificFeatures:
         # Collect to eager for Seer
         df = df_lazy.collect()
         
-        model = Seer()
+        model = Farseer()
         model.fit(df)
         
         forecast = model.predict(model.make_future_dataframe(periods=30))
@@ -345,7 +345,7 @@ class TestPolarsSpecificFeatures:
         assert len(df_filtered) < len(df)
         
         # Model should work with full data
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df)
         
         forecast = model.predict(model.make_future_dataframe(periods=10))
@@ -362,7 +362,7 @@ class TestMixedDataTypes:
             'y': range(100)
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df_pandas)
         
         # Get future as polars
@@ -385,7 +385,7 @@ class TestMixedDataTypes:
             'y': range(len(dates))
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         model.fit(df_polars)
         
         future = model.make_future_dataframe(periods=10)
@@ -414,7 +414,7 @@ class TestPerformance:
             'y': np.random.randn(n).cumsum() + 100
         })
         
-        model = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         
         # Should fit without issues
         model.fit(df)
@@ -435,8 +435,8 @@ class TestPerformance:
         df_polars = pl.from_pandas(df_pandas)
         
         # Both should work
-        model1 = Seer(yearly_seasonality=False, weekly_seasonality=False)
-        model2 = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        model1 = Farseer(yearly_seasonality=False, weekly_seasonality=False)
+        model2 = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         
         model1.fit(df_pandas)
         model2.fit(df_polars)

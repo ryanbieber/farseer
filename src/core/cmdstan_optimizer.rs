@@ -160,7 +160,7 @@ impl CmdStanOptimizer {
                 concat!(env!("CARGO_MANIFEST_DIR"), "/stan/prophet_model"),
                 concat!(env!("CARGO_MANIFEST_DIR"), "/stan/prophet_model"),
             ];
-            return Err(crate::SeerError::StanError(format!(
+            return Err(crate::FarseerError::StanError(format!(
                 "Prophet model binary not found. Tried:\n  - {}\n  - {}\nSet PROPHET_MODEL_PATH environment variable to specify location.",
                 self.model_path.display(),
                 candidates.join("\n  - ")
@@ -171,33 +171,33 @@ impl CmdStanOptimizer {
         let mut data_file = tempfile::Builder::new()
             .suffix(".json")
             .tempfile()
-            .map_err(crate::SeerError::Io)?;
+            .map_err(crate::FarseerError::Io)?;
         let mut init_file = tempfile::Builder::new()
             .suffix(".json")
             .tempfile()
-            .map_err(crate::SeerError::Io)?;
+            .map_err(crate::FarseerError::Io)?;
         let output_file = tempfile::Builder::new()
             .suffix(".csv")
             .tempfile()
-            .map_err(crate::SeerError::Io)?;
+            .map_err(crate::FarseerError::Io)?;
 
         // Write data in JSON format (CmdStan's preferred input format)
         let data_content = serde_json::to_string_pretty(data)
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to serialize data: {}", e)))?;
+            .map_err(|e| crate::FarseerError::StanError(format!("Failed to serialize data: {}", e)))?;
 
         data_file
             .write_all(data_content.as_bytes())
-            .map_err(crate::SeerError::Io)?;
-        data_file.flush().map_err(crate::SeerError::Io)?;
+            .map_err(crate::FarseerError::Io)?;
+        data_file.flush().map_err(crate::FarseerError::Io)?;
 
         // Write init in JSON format
         let init_content = serde_json::to_string_pretty(init)
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to serialize init: {}", e)))?;
+            .map_err(|e| crate::FarseerError::StanError(format!("Failed to serialize init: {}", e)))?;
 
         init_file
             .write_all(init_content.as_bytes())
-            .map_err(crate::SeerError::Io)?;
-        init_file.flush().map_err(crate::SeerError::Io)?;
+            .map_err(crate::FarseerError::Io)?;
+        init_file.flush().map_err(crate::FarseerError::Io)?;
 
         // Set LD_LIBRARY_PATH for TBB libraries
         let model_dir = self
@@ -229,12 +229,12 @@ impl CmdStanOptimizer {
             .arg(format!("file={}", output_file.path().display()))
             .arg(format!("num_threads={}", num_threads))
             .output()
-            .map_err(|e| crate::SeerError::StanError(format!("Failed to run CmdStan: {}", e)))?;
+            .map_err(|e| crate::FarseerError::StanError(format!("Failed to run CmdStan: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
-            return Err(crate::SeerError::StanError(format!(
+            return Err(crate::FarseerError::StanError(format!(
                 "CmdStan optimization failed.\nStderr: {}\nStdout: {}",
                 stderr, stdout
             )));
@@ -249,14 +249,14 @@ impl CmdStanOptimizer {
         use std::fs::File;
         use std::io::{BufRead, BufReader};
 
-        let file = File::open(path).map_err(crate::SeerError::Io)?;
+        let file = File::open(path).map_err(crate::FarseerError::Io)?;
         let reader = BufReader::new(file);
 
         let mut header = Vec::new();
         let mut last_line = String::new();
 
         for line in reader.lines() {
-            let line = line.map_err(crate::SeerError::Io)?;
+            let line = line.map_err(crate::FarseerError::Io)?;
 
             // Skip comments
             if line.starts_with('#') {
@@ -276,7 +276,7 @@ impl CmdStanOptimizer {
         }
 
         if last_line.is_empty() {
-            return Err(crate::SeerError::StanError(
+            return Err(crate::FarseerError::StanError(
                 "No optimization output found".to_string(),
             ));
         }
@@ -291,11 +291,11 @@ impl CmdStanOptimizer {
         let find_index = |name: &str| header.iter().position(|h| h == name);
 
         let k_idx = find_index("k")
-            .ok_or_else(|| crate::SeerError::StanError("k not found in output".to_string()))?;
+            .ok_or_else(|| crate::FarseerError::StanError("k not found in output".to_string()))?;
         let m_idx = find_index("m")
-            .ok_or_else(|| crate::SeerError::StanError("m not found in output".to_string()))?;
+            .ok_or_else(|| crate::FarseerError::StanError("m not found in output".to_string()))?;
         let sigma_obs_idx = find_index("sigma_obs").ok_or_else(|| {
-            crate::SeerError::StanError("sigma_obs not found in output".to_string())
+            crate::FarseerError::StanError("sigma_obs not found in output".to_string())
         })?;
 
         // Extract delta and beta arrays

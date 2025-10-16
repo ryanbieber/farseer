@@ -4,7 +4,7 @@ recursive-include stan prophet_model*
 include stan/README.md
 
 # Include version file if it exists
-include seer/__version__.py
+include farseer/__version__.py
 
 # Include package metadata
 include README.md

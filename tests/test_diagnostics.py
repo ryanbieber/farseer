@@ -9,7 +9,7 @@ import pytest
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from seer import Seer
+from farseer import Farseer
 
 
 @pytest.fixture(scope="module")
@@ -47,11 +47,11 @@ class TestModelComparison:
         })
         
         # Model with weekly seasonality
-        m1 = Seer(yearly_seasonality=False, weekly_seasonality=True)
+        m1 = Farseer(yearly_seasonality=False, weekly_seasonality=True)
         m1.fit(df)
         
         # Model without seasonality
-        m2 = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        m2 = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         m2.fit(df)
         
         # Both should fit
@@ -84,7 +84,7 @@ class TestBacktesting:
         train = df.head(150)
         test = df.tail(50)
         
-        m = Seer(yearly_seasonality=False, weekly_seasonality=True)
+        m = Farseer(yearly_seasonality=False, weekly_seasonality=True)
         m.fit(train)
         
         # Predict on test period
@@ -117,7 +117,7 @@ class TestBacktesting:
             train = df.head(i)
             test_point = df.iloc[i]
             
-            m = Seer(yearly_seasonality=False, weekly_seasonality=False)
+            m = Farseer(yearly_seasonality=False, weekly_seasonality=False)
             m.fit(train)
             
             future = pd.DataFrame({'ds': [test_point['ds']]})

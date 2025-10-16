@@ -5,7 +5,7 @@ Ensures compatibility with Facebook Prophet's regressor implementation.
 import pandas as pd
 import numpy as np
 import pytest
-from seer import Seer
+from farseer import Farseer
 
 
 @pytest.fixture
@@ -30,7 +30,7 @@ class TestRegressorBasics:
     
     def test_add_regressor_basic(self, daily_univariate_ts):
         """Test adding a basic regressor"""
-        m = Seer()
+        m = Farseer()
         m.add_regressor('binary_feature', prior_scale=0.2)
         m.add_regressor('numeric_feature', prior_scale=0.5)
         
@@ -46,7 +46,7 @@ class TestRegressorBasics:
     
     def test_regressor_modes(self, daily_univariate_ts):
         """Test additive and multiplicative regressors"""
-        m = Seer()
+        m = Farseer()
         m.add_regressor('additive_reg', mode='additive')
         m.add_regressor('multiplicative_reg', mode='multiplicative')
         
@@ -60,7 +60,7 @@ class TestRegressorBasics:
     
     def test_regressor_must_be_added_before_fit(self, daily_univariate_ts):
         """Test that regressors must be added before fitting"""
-        m = Seer()
+        m = Farseer()
         df = daily_univariate_ts.copy()
         df['feature'] = range(len(df))
         
@@ -72,7 +72,7 @@ class TestRegressorBasics:
     
     def test_regressor_required_in_fit_df(self, daily_univariate_ts):
         """Test that regressor must be in fitting dataframe"""
-        m = Seer()
+        m = Farseer()
         m.add_regressor('missing_feature')
         
         df = daily_univariate_ts.copy()
@@ -83,7 +83,7 @@ class TestRegressorBasics:
     
     def test_regressor_required_in_predict_df(self, daily_univariate_ts):
         """Test that regressor must be in prediction dataframe"""
-        m = Seer()
+        m = Farseer()
         m.add_regressor('feature')
         
         df = daily_univariate_ts.copy()
@@ -105,7 +105,7 @@ class TestRegressorStandardization:
     
     def test_binary_regressor_not_standardized_by_default(self, daily_univariate_ts):
         """Test that binary 0/1 regressors are not standardized by default (auto mode)"""
-        m = Seer()
+        m = Farseer()
         m.add_regressor('binary_feature', prior_scale=0.2)
         
         df = daily_univariate_ts.copy()
@@ -121,7 +121,7 @@ class TestRegressorStandardization:
     
     def test_numeric_regressor_standardized_by_default(self, daily_univariate_ts):
         """Test that numeric regressors are standardized by default (auto mode)"""
-        m = Seer()
+        m = Farseer()
         m.add_regressor('numeric_feature', prior_scale=0.5)
         
         df = daily_univariate_ts.copy()
@@ -133,7 +133,7 @@ class TestRegressorStandardization:
     
     def test_explicit_standardize_true(self, daily_univariate_ts):
         """Test explicit standardize=true"""
-        m = Seer()
+        m = Farseer()
         m.add_regressor('feature', standardize='true')
         
         df = daily_univariate_ts.copy()
@@ -145,7 +145,7 @@ class TestRegressorStandardization:
     
     def test_explicit_standardize_false(self, daily_univariate_ts):
         """Test explicit standardize=false"""
-        m = Seer()
+        m = Farseer()
         m.add_regressor('feature', standardize='false')
         
         df = daily_univariate_ts.copy()
@@ -157,7 +157,7 @@ class TestRegressorStandardization:
     
     def test_constant_regressor(self, daily_univariate_ts):
         """Test that constant regressor doesn't break fitting"""
-        m = Seer()
+        m = Farseer()
         m.add_regressor('constant_feature')
         
         df = daily_univariate_ts.copy()
@@ -173,7 +173,7 @@ class TestRegressorPrediction:
     
     def test_predict_with_regressors(self, daily_univariate_ts):
         """Test that predictions work with regressors"""
-        m = Seer()
+        m = Farseer()
         m.add_regressor('binary_feature', prior_scale=0.2)
         m.add_regressor('numeric_feature', prior_scale=0.5)
         
@@ -200,7 +200,7 @@ class TestRegressorPrediction:
     
     def test_predict_with_mixed_modes(self, daily_univariate_ts):
         """Test prediction with mixed additive/multiplicative regressors"""
-        m = Seer()
+        m = Farseer()
         m.add_regressor('additive_reg', prior_scale=0.2, mode='additive')
         m.add_regressor('multiplicative_reg', prior_scale=0.5, mode='multiplicative')
         
@@ -224,7 +224,7 @@ class TestRegressorPrediction:
     
     def test_predict_without_df_uses_training_regressors(self, daily_univariate_ts):
         """Test that predict without df uses training regressors"""
-        m = Seer()
+        m = Farseer()
         m.add_regressor('feature')
         
         df = daily_univariate_ts.copy()
@@ -244,7 +244,7 @@ class TestRegressorWithSeasonality:
     
     def test_regressors_with_seasonality_modes(self, daily_univariate_ts):
         """Test regressors with different seasonality modes"""
-        m = Seer(seasonality_mode='multiplicative')
+        m = Farseer(seasonality_mode='multiplicative')
         m.add_seasonality('monthly', period=30, fourier_order=3, mode='additive')
         m.add_regressor('binary_feature', mode='additive')
         m.add_regressor('numeric_feature', mode='multiplicative')
@@ -273,7 +273,7 @@ class TestRegressorPriorScale:
     
     def test_different_prior_scales(self, daily_univariate_ts):
         """Test that different prior scales work"""
-        m = Seer()
+        m = Farseer()
         m.add_regressor('reg1', prior_scale=0.1)
         m.add_regressor('reg2', prior_scale=1.0)
         m.add_regressor('reg3', prior_scale=10.0)
@@ -289,7 +289,7 @@ class TestRegressorPriorScale:
     
     def test_invalid_prior_scale(self):
         """Test that invalid prior scale raises error"""
-        m = Seer()
+        m = Farseer()
         with pytest.raises(Exception):
             m.add_regressor('feature', prior_scale=0.0)  # Should be > 0
         
@@ -302,7 +302,7 @@ class TestRegressorDuplicates:
     
     def test_cannot_add_duplicate_regressor(self):
         """Test that duplicate regressor names are rejected"""
-        m = Seer()
+        m = Farseer()
         m.add_regressor('feature')
         
         with pytest.raises(Exception, match="already exists"):

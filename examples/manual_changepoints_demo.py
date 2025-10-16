@@ -6,7 +6,7 @@ Shows how to manually specify changepoint locations for trend changes.
 
 import pandas as pd
 import numpy as np
-from seer import Seer
+from farseer import Seer
 
 # Set random seed for reproducibility
 np.random.seed(42)
@@ -67,7 +67,7 @@ print("\n" + "=" * 80)
 print("MODEL 1: Automatic Changepoint Detection")
 print("=" * 80)
 
-m1 = Seer(
+m1 = Farseer(
     yearly_seasonality=True,
     weekly_seasonality=False,
     daily_seasonality=False
@@ -96,7 +96,7 @@ print("=" * 80)
 # Specify changepoints at the exact dates we know trend changed
 manual_changepoints = ['2021-01-01', '2022-01-01']
 
-m2 = Seer(
+m2 = Farseer(
     changepoints=manual_changepoints,
     yearly_seasonality=True,
     weekly_seasonality=False,
@@ -122,7 +122,7 @@ print("\n" + "=" * 80)
 print("MODEL 3: Single Manual Changepoint")
 print("=" * 80)
 
-m3 = Seer(
+m3 = Farseer(
     changepoints=['2021-01-01'],  # Only specify the major change
     yearly_seasonality=True,
     weekly_seasonality=False,
@@ -148,7 +148,7 @@ print("\n" + "=" * 80)
 print("MODEL 4: No Changepoints (Linear Trend)")
 print("=" * 80)
 
-m4 = Seer(
+m4 = Farseer(
     n_changepoints=0,
     yearly_seasonality=True,
     weekly_seasonality=False,

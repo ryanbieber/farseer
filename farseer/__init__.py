@@ -1,15 +1,15 @@
-"""Seer: Fast Bayesian time series forecasting
+"""Farseer: Fast Bayesian time series forecasting
 
-Python wrapper around the Rust-based Seer library for time series forecasting.
+Python wrapper around the Rust-based Farseer library for time series forecasting.
 
-Example:
-    >>> from seer import Seer
+Examples:
+    >>> from farseer import Farseer
     >>> import polars as pl
     >>> df = pl.DataFrame({
     ...     'ds': pl.date_range(datetime(2020, 1, 1), datetime(2020, 4, 9), interval='1d'),
     ...     'y': range(100)
     ... })
-    >>> model = Seer()
+    >>> model = Farseer()
     >>> model.fit(df)
     >>> forecast = model.predict(model.make_future_dataframe(periods=30))
     
@@ -19,12 +19,12 @@ Example:
     ...     'ds': pd.date_range('2020-01-01', periods=100),
     ...     'y': range(100)
     ... })
-    >>> model = Seer()
+    >>> model = Farseer()
     >>> model.fit(df)  # Automatically converted to polars
 """
 
-# This file provides Python-level enhancements to the Rust Seer class
-# The base Seer class is defined in the Rust library (src/lib.rs)
+# This file provides Python-level enhancements to the Rust Farseer class
+# The base Farseer class is defined in the Rust library (src/lib.rs)
 # and compiled via PyO3/maturin
 
 from pathlib import Path
@@ -47,22 +47,22 @@ except ImportError:
     pd = None
 
 # Import the Rust module
-# Maturin builds this as seer._seer or seer.seer depending on configuration
+# Maturin builds this as farseer._farseer or farseer.farseer depending on configuration
 # We'll try both approaches for compatibility
 try:
     # Try importing the Rust extension module directly
-    from . import seer as _rust_seer
-    _Seer = _rust_seer.Seer
-    __version__ = getattr(_rust_seer, '__version__', '0.1.0')
+    from . import farseer as _rust_farseer
+    _Farseer = _rust_farseer.Farseer
+    __version__ = getattr(_rust_farseer, '__version__', '0.1.0')
 except ImportError:
     try:
         # Try the alternative naming convention
-        from . import _seer as _rust_seer
-        _Seer = _rust_seer.Seer
-        __version__ = getattr(_rust_seer, '__version__', '0.1.0')
+        from . import _farseer as _rust_farseer
+        _Farseer = _rust_farseer.Farseer
+        __version__ = getattr(_rust_farseer, '__version__', '0.1.0')
     except ImportError as e:
         raise ImportError(
-            f"Could not import seer Rust module. Please build and install with 'maturin develop'. Error: {e}"
+            f"Could not import farseer Rust module. Please build and install with 'maturin develop'. Error: {e}"
         ) from e
 
 
@@ -96,9 +96,9 @@ def _ensure_polars(df) -> pl.DataFrame:
         raise TypeError(f"Expected polars.DataFrame or pandas.DataFrame, got {type(df)}")
 
 
-class Seer(_Seer):
+class Farseer(_Farseer):
     """
-    Seer forecaster with scikit-learn-like interface.
+    Farseer forecaster with scikit-learn-like interface.
     
     Supports both polars and pandas DataFrames (pandas will be converted to polars internally).
     
@@ -135,7 +135,7 @@ class Seer(_Seer):
     ... })
     >>> 
     >>> # Fit model
-    >>> model = Seer()
+    >>> model = Farseer()
     >>> model.fit(df)
     >>> 
     >>> # Make predictions
@@ -143,7 +143,7 @@ class Seer(_Seer):
     >>> forecast = model.predict(future)
     """
     
-    def fit(self, df: Union[pl.DataFrame, 'pd.DataFrame'], **kwargs) -> 'Seer':
+    def fit(self, df: Union[pl.DataFrame, 'pd.DataFrame'], **kwargs) -> 'Farseer':
         """
         Fit the Seer model.
         
@@ -156,7 +156,7 @@ class Seer(_Seer):
             
         Returns
         -------
-        self : Seer
+        self : Farseer
             Fitted model
         """
         # Convert to polars if needed
@@ -324,7 +324,7 @@ class Seer(_Seer):
         fourier_order: int, 
         prior_scale: Optional[float] = None,
         mode: Optional[str] = None
-    ) -> 'Seer':
+    ) -> 'Farseer':
         """
         Add a custom seasonality component.
         
@@ -343,7 +343,7 @@ class Seer(_Seer):
             
         Returns
         -------
-        self : Seer
+        self : Farseer
             Model instance for method chaining
         """
         super().add_seasonality(name, period, fourier_order, prior_scale, mode)
@@ -357,7 +357,7 @@ class Seer(_Seer):
         upper_window: Optional[int] = None,
         prior_scale: Optional[float] = None,
         mode: Optional[str] = None
-    ) -> 'Seer':
+    ) -> 'Farseer':
         """
         Add custom holiday effects.
         
@@ -378,12 +378,12 @@ class Seer(_Seer):
             
         Returns
         -------
-        self : Seer
+        self : Farseer
             Model instance for method chaining
             
         Examples
         --------
-        >>> model = Seer()
+        >>> model = Farseer()
         >>> model.add_holidays(
         ...     'christmas',
         ...     ['2020-12-25', '2021-12-25', '2022-12-25'],
@@ -394,7 +394,7 @@ class Seer(_Seer):
         super().add_holidays(name, dates, lower_window, upper_window, prior_scale, mode)
         return self
     
-    def add_country_holidays(self, country_name: str) -> 'Seer':
+    def add_country_holidays(self, country_name: str) -> 'Farseer':
         """
         Add country-specific holidays.
         
@@ -405,12 +405,12 @@ class Seer(_Seer):
             
         Returns
         -------
-        self : Seer
+        self : Farseer
             Model instance for method chaining
             
         Examples
         --------
-        >>> model = Seer()
+        >>> model = Farseer()
         >>> model.add_country_holidays('US')
         """
         super().add_country_holidays(country_name)
@@ -430,7 +430,7 @@ class Seer(_Seer):
             f.write(json_str)
     
     @classmethod
-    def load(cls, path: str) -> 'Seer':
+    def load(cls, path: str) -> 'Farseer':
         """
         Load a model from a JSON file.
         
@@ -441,7 +441,7 @@ class Seer(_Seer):
             
         Returns
         -------
-        model : Seer
+        model : Farseer
             Loaded model instance
         """
         with open(path, 'r') as f:
@@ -568,4 +568,4 @@ class Seer(_Seer):
 # Import utilities
 from .utilities import regressor_coefficients
 
-__all__ = ['Seer', 'regressor_coefficients', '__version__']
+__all__ = ['Farseer', 'regressor_coefficients', '__version__']

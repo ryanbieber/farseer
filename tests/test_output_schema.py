@@ -6,7 +6,7 @@ Test that Seer's output schema exactly matches Prophet's output schema
 import pytest
 import pandas as pd
 import numpy as np
-from seer import Seer
+from farseer import Farseer
 
 try:
     from prophet import Prophet
@@ -32,7 +32,7 @@ class TestOutputSchemaMatchesProphet:
         forecast_prophet = m_prophet.predict(df)
         
         # Seer
-        m_seer = Seer(yearly_seasonality=True, weekly_seasonality=True)
+        m_seer = Farseer(yearly_seasonality=True, weekly_seasonality=True)
         m_seer.fit(df)
         forecast_seer = m_seer.predict(df).to_pandas()
         
@@ -53,7 +53,7 @@ class TestOutputSchemaMatchesProphet:
         forecast_prophet = m_prophet.predict(df)
         
         # Seer
-        m_seer = Seer(yearly_seasonality=True, weekly_seasonality=True)
+        m_seer = Farseer(yearly_seasonality=True, weekly_seasonality=True)
         m_seer.fit(df)
         forecast_seer = m_seer.predict(df).to_pandas()
         
@@ -72,7 +72,7 @@ class TestOutputSchemaMatchesProphet:
         })
         
         # Test with seasonality disabled
-        m = Seer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False)
+        m = Farseer(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False)
         m.fit(df)
         forecast = m.predict(df).to_pandas()
         
@@ -95,7 +95,7 @@ class TestOutputSchemaMatchesProphet:
             'y': np.random.randn(100).cumsum() + 100
         })
         
-        m = Seer(yearly_seasonality=True, weekly_seasonality=True)
+        m = Farseer(yearly_seasonality=True, weekly_seasonality=True)
         m.fit(df)
         forecast = m.predict(df).to_pandas()
         
@@ -121,7 +121,7 @@ class TestOutputSchemaMatchesProphet:
             'y': np.random.randn(100).cumsum() + 100
         })
         
-        m = Seer(yearly_seasonality=True, weekly_seasonality=True)
+        m = Farseer(yearly_seasonality=True, weekly_seasonality=True)
         m.fit(df)
         forecast = m.predict(df).to_pandas()
         
@@ -163,7 +163,7 @@ class TestOutputSchemaMatchesProphet:
         forecast_prophet = m_prophet.predict(df)
         
         # Seer
-        m_seer = Seer(yearly_seasonality=True, weekly_seasonality=True)
+        m_seer = Farseer(yearly_seasonality=True, weekly_seasonality=True)
         m_seer.fit(df)
         forecast_seer = m_seer.predict(df).to_pandas()
         

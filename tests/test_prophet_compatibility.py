@@ -9,7 +9,7 @@ import pytest
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from seer import Seer
+from farseer import Farseer
 
 
 @pytest.fixture
@@ -105,7 +105,7 @@ class TestProphetFitPredictDefault:
         train, test = train_test_split(daily_univariate_ts, test_days)
         
         # Use default settings - auto-detection will disable yearly for ~1.3 year data
-        model = Seer()
+        model = Farseer()
         model.fit(train)
         
         future = model.make_future_dataframe(test_days, include_history=False)
@@ -126,7 +126,7 @@ class TestProphetFitPredictDefault:
         test_days = 30
         train, _ = train_test_split(daily_univariate_ts, test_days)
         
-        model = Seer(
+        model = Farseer(
             weekly_seasonality=False,
             yearly_seasonality=False
         )
@@ -143,7 +143,7 @@ class TestProphetFitPredictDefault:
         test_days = daily_univariate_ts.shape[0] // 2
         train, future = train_test_split(daily_univariate_ts, test_days)
         
-        model = Seer(n_changepoints=0)
+        model = Farseer(n_changepoints=0)
         model.fit(train)
         model.predict(future)
         
@@ -160,7 +160,7 @@ class TestProphetFitPredictDefault:
         ]
         future = pd.DataFrame({"ds": daily_univariate_ts["ds"]})
         
-        model = Seer(changepoints=["2013-06-06"])
+        model = Farseer(changepoints=["2013-06-06"])
         model.fit(train)
         model.predict(future)
         
@@ -177,7 +177,7 @@ class TestProphetFitPredictDefault:
         repeated_obs["y"] += 10
         train = pd.concat([train, repeated_obs], ignore_index=True)
         
-        model = Seer()
+        model = Farseer()
         model.fit(train)
         model.predict(test)
     
@@ -187,7 +187,7 @@ class TestProphetFitPredictDefault:
         test_days = daily_univariate_ts.shape[0] // 2
         train, future = train_test_split(daily_univariate_ts, test_days)
         
-        model = Seer(uncertainty_samples=0)
+        model = Farseer(uncertainty_samples=0)
         model.fit(train)
         result = model.predict(future)
         
@@ -204,7 +204,7 @@ class TestProphetDataPrep:
         """Test that dataframe setup works correctly"""
         train, _ = train_test_split(daily_univariate_ts, daily_univariate_ts.shape[0] // 2)
         
-        m = Seer()
+        m = Farseer()
         m.fit(train)
         
         # After fitting, model should have processed the data
@@ -219,7 +219,7 @@ class TestProphetDataPrep:
         train.index = pd.to_datetime(["1970-01-01" for _ in range(train.shape[0])])
         train.index.rename("ds", inplace=True)
         
-        m = Seer()
+        m = Farseer()
         m.fit(train)
         
         # Should use the column, not the index
@@ -233,7 +233,7 @@ class TestProphetDataPrep:
         train["floor"] = 10.0
         train["cap"] = 80.0
         
-        m = Seer(growth="logistic")
+        m = Farseer(growth="logistic")
         m.fit(train)
         
         # Test with shifted floor and cap
@@ -241,7 +241,7 @@ class TestProphetDataPrep:
         for col in ["y", "floor", "cap"]:
             train2[col] += 10.0
         
-        m2 = Seer(growth="logistic")
+        m2 = Farseer(growth="logistic")
         m2.fit(train2)
         
         # Both should fit successfully
@@ -252,7 +252,7 @@ class TestProphetDataPrep:
         """Test make_future_dataframe with different frequencies"""
         train = daily_univariate_ts.head(468 // 2)
         
-        model = Seer()
+        model = Farseer()
         model.fit(train)
         
         # Daily frequency
@@ -275,7 +275,7 @@ class TestProphetDataPrep:
         # Add some NAs to history
         train.loc[train.sample(min(10, len(train))).index, "y"] = np.nan
         
-        model = Seer()
+        model = Farseer()
         model.fit(train)
         
         future = model.make_future_dataframe(periods=3, freq='D', include_history=True)
@@ -290,11 +290,11 @@ class TestProphetTrendComponent:
     def test_invalid_growth_input(self):
         """Test that invalid growth raises error"""
         with pytest.raises(Exception):
-            Seer(growth="constant")
+            Farseer(growth="constant")
     
     def test_growth_init(self, daily_univariate_ts):
         """Test growth initialization"""
-        model = Seer(growth="logistic")
+        model = Farseer(growth="logistic")
         train = daily_univariate_ts.iloc[:468].copy()
         train["cap"] = train["y"].max()
         
@@ -306,7 +306,7 @@ class TestProphetTrendComponent:
     
     def test_flat_growth(self):
         """Test flat growth trend"""
-        m = Seer(growth="flat")
+        m = Farseer(growth="flat")
         
         x = np.linspace(0, 2 * np.pi, 8 * 7)
         history = pd.DataFrame({
@@ -326,7 +326,7 @@ class TestProphetTrendComponent:
         """Test changepoint detection uses first 80% of history"""
         train, _ = train_test_split(daily_univariate_ts, daily_univariate_ts.shape[0] // 2)
         
-        m = Seer()
+        m = Farseer()
         m.fit(train)
         
         params = m.params()
@@ -336,7 +336,7 @@ class TestProphetTrendComponent:
         """Test custom changepoint range"""
         train, _ = train_test_split(daily_univariate_ts, daily_univariate_ts.shape[0] // 2)
         
-        m = Seer(changepoint_range=0.4)
+        m = Farseer(changepoint_range=0.4)
         m.fit(train)
         
         params = m.params()
@@ -344,15 +344,15 @@ class TestProphetTrendComponent:
         
         # Out of range values should raise error
         with pytest.raises(Exception):
-            Seer(changepoint_range=-0.1)
+            Farseer(changepoint_range=-0.1)
         with pytest.raises(Exception):
-            Seer(changepoint_range=2)
+            Farseer(changepoint_range=2)
     
     def test_get_zero_changepoints(self, daily_univariate_ts):
         """Test with zero changepoints"""
         train, _ = train_test_split(daily_univariate_ts, daily_univariate_ts.shape[0] // 2)
         
-        m = Seer(n_changepoints=0)
+        m = Farseer(n_changepoints=0)
         m.fit(train)
         
         params = m.params()
@@ -362,7 +362,7 @@ class TestProphetTrendComponent:
         """Test manually setting number of changepoints"""
         train = daily_univariate_ts.head(20).copy()
         
-        m = Seer(n_changepoints=15)
+        m = Farseer(n_changepoints=15)
         m.fit(train)
         
         params = m.params()
@@ -377,7 +377,7 @@ class TestProphetSeasonalComponent:
         """Test automatic weekly seasonality detection"""
         # Should be enabled for daily data
         train = daily_univariate_ts.head(15)
-        m = Seer()
+        m = Farseer()
         m.fit(train)
         
         future = m.make_future_dataframe(7)
@@ -389,7 +389,7 @@ class TestProphetSeasonalComponent:
         
         # Should be disabled for weekly spacing
         train_weekly = daily_univariate_ts.iloc[::7, :]
-        m2 = Seer()
+        m2 = Farseer()
         m2.fit(train_weekly)
         
         params = m2.params()
@@ -398,7 +398,7 @@ class TestProphetSeasonalComponent:
     def test_auto_yearly_seasonality(self, daily_univariate_ts):
         """Test automatic yearly seasonality detection"""
         # Should be enabled for long enough data
-        m = Seer()
+        m = Farseer()
         m.fit(daily_univariate_ts)
         
         future = m.make_future_dataframe(30)
@@ -410,7 +410,7 @@ class TestProphetSeasonalComponent:
         
         # Should be disabled for short history
         train_short = daily_univariate_ts.head(240)
-        m2 = Seer()
+        m2 = Farseer()
         m2.fit(train_short)
         
         # Model should still fit
@@ -420,7 +420,7 @@ class TestProphetSeasonalComponent:
     def test_auto_daily_seasonality(self, subdaily_univariate_ts):
         """Test automatic daily seasonality detection"""
         # Should be enabled for subdaily data
-        m = Seer()
+        m = Farseer()
         m.fit(subdaily_univariate_ts)
         
         future = m.make_future_dataframe(24, freq='H')
@@ -433,23 +433,23 @@ class TestProphetSeasonalComponent:
     def test_set_seasonality_mode(self):
         """Test seasonality mode settings"""
         # Default should be additive
-        m = Seer()
+        m = Farseer()
         params = m.params()
         assert params['seasonality_mode'] in ['Additive', 'additive']
         
         # Multiplicative mode
-        m2 = Seer(seasonality_mode="multiplicative")
+        m2 = Farseer(seasonality_mode="multiplicative")
         params2 = m2.params()
         assert params2['seasonality_mode'] in ['Multiplicative', 'multiplicative']
         
         # Invalid mode
         with pytest.raises(Exception):
-            Seer(seasonality_mode="batman")
+            Farseer(seasonality_mode="batman")
     
     def test_seasonality_modes(self, daily_univariate_ts):
         """Test different seasonality modes with holidays and regressors"""
         # Model with multiplicative seasonality
-        m = Seer(seasonality_mode="multiplicative")
+        m = Farseer(seasonality_mode="multiplicative")
         
         df = daily_univariate_ts.copy()
         m.fit(df)
@@ -468,7 +468,7 @@ class TestProphetCustomSeasonalComponent:
     
     def test_custom_monthly_seasonality(self):
         """Test adding custom monthly seasonality"""
-        m = Seer()
+        m = Farseer()
         m.add_seasonality(name="monthly", period=30, fourier_order=5, prior_scale=2.0)
         
         params = m.params()
@@ -482,7 +482,7 @@ class TestProphetCustomSeasonalComponent:
     
     def test_duplicate_component_names(self):
         """Test that duplicate seasonality names raise error"""
-        m = Seer()
+        m = Farseer()
         m.add_seasonality(name="custom", period=30, fourier_order=5)
         
         # Adding same name again should raise error
@@ -491,7 +491,7 @@ class TestProphetCustomSeasonalComponent:
     
     def test_custom_fourier_order(self):
         """Test that invalid Fourier order raises error"""
-        m = Seer()
+        m = Farseer()
         
         # Fourier order must be positive
         with pytest.raises(Exception):
@@ -506,7 +506,7 @@ class TestProphetHolidays:
     
     def test_holidays_lower_window(self):
         """Test holidays with lower window"""
-        m = Seer()
+        m = Farseer()
         m.add_holidays("xmas", ["2016-12-25"], lower_window=-1, upper_window=0)
         
         df = pd.DataFrame({"ds": pd.date_range("2016-12-20", "2016-12-31")})
@@ -522,7 +522,7 @@ class TestProphetHolidays:
     
     def test_holidays_upper_window(self):
         """Test holidays with upper window"""
-        m = Seer()
+        m = Farseer()
         m.add_holidays("xmas", ["2016-12-25"], lower_window=-1, upper_window=10)
         
         df = pd.DataFrame({"ds": pd.date_range("2016-12-20", "2016-12-31")})
@@ -537,7 +537,7 @@ class TestProphetHolidays:
     
     def test_fit_with_holidays(self, daily_univariate_ts):
         """Test fitting with holidays"""
-        m = Seer(uncertainty_samples=0)
+        m = Farseer(uncertainty_samples=0)
         m.add_holidays("seans-bday", ["2012-06-06", "2013-06-06"], 
                       lower_window=0, upper_window=1)
         
@@ -549,7 +549,7 @@ class TestProphetHolidays:
     
     def test_subdaily_holidays(self, subdaily_univariate_ts):
         """Test holidays with subdaily data"""
-        m = Seer()
+        m = Farseer()
         m.add_holidays("special_day", ["2017-01-02"])
         
         m.fit(subdaily_univariate_ts)
@@ -564,7 +564,7 @@ class TestProphetRegressors:
     
     def test_added_regressors(self, daily_univariate_ts):
         """Test adding extra regressors (API compatibility test - regressors not fully implemented)"""
-        m = Seer()
+        m = Farseer()
         m.add_regressor("binary_feature", prior_scale=0.2)
         m.add_regressor("numeric_feature", prior_scale=0.5)
         
@@ -597,7 +597,7 @@ class TestProphetRegressors:
         df = daily_univariate_ts.copy()
         df["constant_feature"] = 0
         
-        m = Seer()
+        m = Farseer()
         m.add_regressor("constant_feature")
         m.fit(df)
         
@@ -616,7 +616,7 @@ class TestEdgeCases:
             'y': [10, 11, 12, 11, 10]
         })
         
-        m = Seer(n_changepoints=0, yearly_seasonality=False, weekly_seasonality=False)
+        m = Farseer(n_changepoints=0, yearly_seasonality=False, weekly_seasonality=False)
         m.fit(df)
         
         future = m.make_future_dataframe(periods=5)
@@ -631,13 +631,13 @@ class TestEdgeCases:
             'value': range(10)
         })
         
-        m = Seer()
+        m = Farseer()
         with pytest.raises(Exception):
             m.fit(df)
     
     def test_predict_before_fit(self):
         """Test error when predicting before fitting"""
-        m = Seer()
+        m = Farseer()
         df = pd.DataFrame({'ds': pd.date_range('2020-01-01', periods=10)})
         
         with pytest.raises(Exception):
@@ -653,7 +653,7 @@ class TestEdgeCases:
         # Add some NaN values
         df.loc[10:20, 'y'] = np.nan
         
-        m = Seer()
+        m = Farseer()
         m.fit(df)
         
         # Should handle NaN values

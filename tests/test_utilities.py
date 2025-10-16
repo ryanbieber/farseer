@@ -8,7 +8,7 @@ Based on Prophet's test_utilities.py
 import pytest
 import pandas as pd
 import numpy as np
-from seer import Seer, regressor_coefficients
+from farseer import Farseer, regressor_coefficients
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ class TestUtilities:
     
     def test_regressor_coefficients(self, daily_univariate_ts):
         """Test extracting regressor coefficients"""
-        m = Seer()
+        m = Farseer()
         df = daily_univariate_ts.copy()
         
         # Use Prophet's seed for reproducibility (matches Facebook Prophet tests)
@@ -79,7 +79,7 @@ class TestDataValidation:
             'y': range(10)
         })
         
-        m = Seer()
+        m = Farseer()
         m.fit(df_valid)
         
         assert m.params()['fitted'] is True
@@ -100,7 +100,7 @@ class TestDataValidation:
             'y': [10 + i * 0.1 for i in range(50)]
         })
         
-        m1 = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        m1 = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         m1.fit(df1)
         assert m1.params()['fitted'] is True
         
@@ -110,7 +110,7 @@ class TestDataValidation:
             'y': [10 + i * 0.1 for i in range(50)]
         })
         
-        m2 = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        m2 = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         m2.fit(df2)
         assert m2.params()['fitted'] is True
     
@@ -121,7 +121,7 @@ class TestDataValidation:
             'y': ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']
         })
         
-        m = Seer()
+        m = Farseer()
         with pytest.raises(Exception):
             m.fit(df)
 
@@ -131,7 +131,7 @@ class TestHelperFunctions:
     
     def test_params_extraction(self):
         """Test extracting model parameters"""
-        m = Seer(
+        m = Farseer(
             growth='linear',
             n_changepoints=10,
             changepoint_range=0.9,
@@ -149,7 +149,7 @@ class TestHelperFunctions:
     
     def test_model_string_representation(self):
         """Test model string representation"""
-        m = Seer()
+        m = Farseer()
         
         # Should have some string representation
         str_repr = str(m)
@@ -157,7 +157,7 @@ class TestHelperFunctions:
     
     def test_seasonality_info(self):
         """Test getting seasonality information"""
-        m = Seer(yearly_seasonality=True, weekly_seasonality=False)
+        m = Farseer(yearly_seasonality=True, weekly_seasonality=False)
         m.add_seasonality('monthly', period=30.5, fourier_order=5)
         
         params = m.params()
@@ -178,7 +178,7 @@ class TestDateHandling:
             'y': range(100)
         })
         
-        m = Seer()
+        m = Farseer()
         m.fit(df)
         
         # Should infer daily frequency
@@ -192,7 +192,7 @@ class TestDateHandling:
             'y': range(100)
         })
         
-        m = Seer()
+        m = Farseer()
         m.fit(df)
         
         # Should infer hourly frequency
@@ -212,7 +212,7 @@ class TestDateHandling:
             'y': range(len(dates))
         })
         
-        m = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        m = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         m.fit(df)
         
         # Should handle irregular spacing
@@ -230,7 +230,7 @@ class TestScaling:
             'y': np.arange(50) * 1000 + 10000
         })
         
-        m_large = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        m_large = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         m_large.fit(df_large)
         
         # Small values
@@ -239,7 +239,7 @@ class TestScaling:
             'y': np.arange(50) * 0.001 + 0.01
         })
         
-        m_small = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        m_small = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         m_small.fit(df_small)
         
         # Both should fit successfully
@@ -253,7 +253,7 @@ class TestScaling:
             'y': np.random.randn(100)  # Zero mean
         })
         
-        m = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        m = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         m.fit(df)
         
         assert m.params()['fitted'] is True
@@ -265,7 +265,7 @@ class TestScaling:
             'y': np.arange(50) - 25  # Negative and positive
         })
         
-        m = Seer(yearly_seasonality=False, weekly_seasonality=False)
+        m = Farseer(yearly_seasonality=False, weekly_seasonality=False)
         m.fit(df)
         
         future = m.make_future_dataframe(periods=10)
@@ -285,11 +285,11 @@ class TestModelCopy:
             'y': np.arange(100) * 0.5 + 10
         })
         
-        m1 = Seer(n_changepoints=10, yearly_seasonality=False)
+        m1 = Farseer(n_changepoints=10, yearly_seasonality=False)
         m1.fit(df)
         
         # Create second model with same params
-        m2 = Seer(n_changepoints=10, yearly_seasonality=False)
+        m2 = Farseer(n_changepoints=10, yearly_seasonality=False)
         m2.fit(df)
         
         # Should have same configuration

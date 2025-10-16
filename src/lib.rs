@@ -8,12 +8,12 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 pub mod core;
-pub use core::{ForecastResult, Seer as CoreSeer, TimeSeriesData, TrendType};
+pub use core::{ForecastResult, Farseer as CoreFarseer, TimeSeriesData, TrendType};
 
-pub type Result<T> = std::result::Result<T, SeerError>;
+pub type Result<T> = std::result::Result<T, FarseerError>;
 
 #[derive(Debug, thiserror::Error)]
-pub enum SeerError {
+pub enum FarseerError {
     #[error("Data validation error: {0}")]
     DataValidation(String),
 
@@ -64,12 +64,12 @@ fn convert_ds_to_strings(ds_series: Bound<'_, PyAny>) -> PyResult<Vec<String>> {
 
 // Python wrapper class
 #[pyclass(subclass)]
-struct Seer {
-    inner: CoreSeer,
+struct Farseer {
+    inner: CoreFarseer,
 }
 
 #[pymethods]
-impl Seer {
+impl Farseer {
     #[new]
     #[allow(unused_variables)] // Prophet compatibility parameters
     #[pyo3(signature = (
@@ -110,7 +110,7 @@ impl Seer {
             }
         };
 
-        let mut seer = CoreSeer::new()
+        let mut seer = CoreFarseer::new()
             .with_trend(trend)
             .with_changepoints(n_changepoints)
             .with_changepoint_range(changepoint_range)
@@ -144,7 +144,7 @@ impl Seer {
             seer = seer.with_manual_changepoints(cp_vec);
         }
 
-        Ok(Seer { inner: seer })
+        Ok(Farseer { inner: seer })
     }
 
     /// Fit the model to historical data
@@ -451,7 +451,7 @@ impl Seer {
     fn load(path: &str) -> PyResult<Self> {
         let json_str = std::fs::read_to_string(path)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
-        let inner = CoreSeer::from_json(&json_str)
+        let inner = CoreFarseer::from_json(&json_str)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(Self { inner })
     }
@@ -466,14 +466,14 @@ impl Seer {
     /// Deserialize model from JSON string
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner = CoreSeer::from_json(json)
+        let inner = CoreFarseer::from_json(json)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-        Ok(Seer { inner })
+        Ok(Farseer { inner })
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "Seer(growth={:?}, n_changepoints={})",
+            "Farseer(growth={:?}, n_changepoints={})",
             self.inner.trend_type(),
             self.inner.n_changepoints()
         )
@@ -482,8 +482,8 @@ impl Seer {
 
 /// Python module definition
 #[pymodule]
-fn _seer(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<Seer>()?;
+fn _farseer(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<Farseer>()?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }

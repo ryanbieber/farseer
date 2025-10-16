@@ -6,4 +6,4 @@ pub mod stan; // Stan/BridgeStan integration
 pub mod trend; // LBFGS optimizer using argmin-rs
 
 pub use data::{ForecastResult, TimeSeriesData};
-pub use model::{Seer, TrendType};
+pub use model::{Farseer, TrendType};

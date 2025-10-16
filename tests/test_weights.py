@@ -9,7 +9,7 @@ import numpy as np
 # This test will be run after building the Python package
 def test_weights_basic():
     """Test that weights are accepted and used"""
-    from seer import Seer
+    from farseer import Farseer
     
     # Create simple data
     dates = pd.date_range('2020-01-01', periods=100)
@@ -25,14 +25,14 @@ def test_weights_basic():
     
     # Fit with weights (Stan backend)
     try:
-        model_stan = Seer()
+        model_stan = Farseer()
         model_stan.fit(df[['ds', 'y', 'weight']])
         print("✓ Stan backend uses weights")
     except Exception as e:
         print(f"Note: Stan backend test skipped: {e}")
     
     # Test without weights column (should still work)
-    model_no_weights = Seer()
+    model_no_weights = Farseer()
     model_no_weights.fit(df[['ds', 'y']])
     print("✓ Works without weights column")
     
@@ -41,7 +41,7 @@ def test_weights_basic():
 
 def test_weights_validation():
     """Test that weight validation works"""
-    from seer import Seer
+    from farseer import Farseer
     
     dates = pd.date_range('2020-01-01', periods=10)
     y = np.arange(10, dtype=float)
@@ -53,7 +53,7 @@ def test_weights_validation():
             'y': y,
             'weight': [-1.0] + [1.0] * 9
         })
-        model = Seer()
+        model = Farseer()
         model.fit(df_bad)
         print("✗ Should have rejected negative weights")
     except Exception as e:
@@ -69,7 +69,7 @@ def test_weights_validation():
             'y': y,
             'weight': [1.0] * 5  # Wrong length
         })
-        model = Seer()
+        model = Farseer()
         model.fit(df_bad)
         print("✗ Should have rejected wrong length weights")
     except Exception as e:
@@ -88,7 +88,7 @@ if __name__ == "__main__":
         print()
         test_weights_validation()
     except ImportError:
-        print("Cannot import seer - build the package first:")
+        print("Cannot import farseer - build the package first:")
         print("  maturin develop")
         print("or")
         print("  pip install -e .")

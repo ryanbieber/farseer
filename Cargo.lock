@@ -273,6 +273,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "farseer"
+version = "0.3.4"
+dependencies = [
+ "anyhow",
+ "approx",
+ "argmin",
+ "argmin-math",
+ "chrono",
+ "criterion",
+ "ndarray",
+ "numpy",
+ "pyo3",
+ "pyo3-build-config 0.22.6",
+ "pythonize",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -802,27 +823,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
-]
-
-[[package]]
-name = "seer"
-version = "0.3.4"
-dependencies = [
- "anyhow",
- "approx",
- "argmin",
- "argmin-math",
- "chrono",
- "criterion",
- "ndarray",
- "numpy",
- "pyo3",
- "pyo3-build-config 0.22.6",
- "pythonize",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
 ]
 
 [[package]]
