@@ -34,7 +34,7 @@ Farseer is used for producing reliable forecasts for planning and goal setting. 
 
 Get a reasonable forecast on messy data with no manual effort. Farseer is robust to outliers, missing data, and dramatic changes in your time series. Just pass your data and get started.
 
-### Tunable Forecasts  
+### Tunable Forecasts
 
 The Farseer procedure includes many possibilities for users to tweak and adjust forecasts. You can use human-interpretable parameters to improve your forecast by adding your domain knowledge.
 
@@ -42,7 +42,7 @@ The Farseer procedure includes many possibilities for users to tweak and adjust 
 
 Give more importance to recent or reliable observations using **observation weights**. Perfect for:
 - Emphasizing recent data in evolving trends
-- Downweighting outliers or unreliable measurements  
+- Downweighting outliers or unreliable measurements
 - Incorporating data quality information
 
 ### Available for Python (Rust Core)
@@ -235,7 +235,7 @@ m.fit(df)  # ⚡ Multithreaded by default!
 
 **Performance on 1000 observations:**
 - **Farseer (8 cores)**: ~2-3 seconds
-- **Farseer (1 core)**: ~8-10 seconds  
+- **Farseer (1 core)**: ~8-10 seconds
 - **Prophet (1 core)**: ~15-20 seconds
 
 The speedup scales with CPU cores and dataset size. Farseer automatically:
@@ -705,7 +705,7 @@ farseer/
 ├── farseer/                     # Python package (at root)
 │   └── __init__.py          # Python wrapper with enhanced API
 │
-├── src/                      # Rust source code  
+├── src/                      # Rust source code
 │   ├── lib.rs               # PyO3 bindings
 │   └── core/                # Core Rust implementation
 │       ├── model.rs         # Forecasting model
@@ -860,13 +860,13 @@ def benchmark_fit(n_obs, n_runs=3):
         dates = pl.date_range(datetime(2018, 1, 1), periods=n_obs, interval='1d', eager=True)
         y = np.random.randn(n_obs).cumsum() + 100
         df = pl.DataFrame({'ds': dates, 'y': y})
-        
+
         start = time.time()
         m = Farseer()
         m.fit(df)
         elapsed = time.time() - start
         times.append(elapsed)
-    
+
     return np.mean(times), np.std(times)
 
 # Run benchmarks
@@ -993,10 +993,10 @@ Special thanks to the Prophet team for pioneering accessible Bayesian time serie
 
 <div align="center">
 
-**Version**: 0.2.0  
-**Status**: Active Development  
-**Last Updated**: October 14, 2025  
-**Python**: 3.8+ (3.13 supported)  
+**Version**: 0.2.0
+**Status**: Active Development
+**Last Updated**: October 14, 2025
+**Python**: 3.8+ (3.13 supported)
 **Rust**: 2021 edition
 
 [⭐ Star on GitHub](https://github.com/ryanbieber/farseer) | [📝 Report Issue](https://github.com/ryanbieber/farseer/issues) | [💬 Discussions](https://github.com/ryanbieber/farseer/discussions)

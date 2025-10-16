@@ -1,4 +1,4 @@
-use farseer::core::{self, Seer as CoreFarseer, TimeSeriesData, TrendType};
+use farseer::core::{self, Farseer as CoreFarseer, TimeSeriesData, TrendType};
 
 fn make_ds(start: &str, n: usize) -> Vec<String> {
     let start_date = chrono::NaiveDate::parse_from_str(start, "%Y-%m-%d").unwrap();
@@ -132,8 +132,8 @@ fn future_dates_daily_len_and_contiguity() {
     let fut = m.make_future_dates(5, "D", true).unwrap();
     assert_eq!(fut.len(), 15);
     // check last future date is 5 days after last history
-    let last_hist = chrono::NaiveDate::parse_from_str(&ds.last().unwrap(), "%Y-%m-%d").unwrap();
-    let last_fut = chrono::NaiveDate::parse_from_str(&fut.last().unwrap(), "%Y-%m-%d").unwrap();
+    let last_hist = chrono::NaiveDate::parse_from_str(ds.last().unwrap(), "%Y-%m-%d").unwrap();
+    let last_fut = chrono::NaiveDate::parse_from_str(fut.last().unwrap(), "%Y-%m-%d").unwrap();
     assert_eq!(last_fut, last_hist + chrono::Duration::days(5));
 }
 
@@ -176,7 +176,7 @@ fn model_logistic_growth() {
     let y: Vec<f64> = (0..n)
         .map(|i| {
             let t = i as f64 / n as f64;
-            cap_val / (1.0 + (-5.0 * (t - 0.5)).exp()) + (rand::random::<f64>() - 0.5) * 2.0
+            cap_val / (1.0 + (-5.0 * (t - 0.5)).exp()) + (rand::random() - 0.5) * 2.0
         })
         .collect();
     let cap = vec![cap_val; n];
@@ -223,10 +223,10 @@ mod rand {
 
     // Prophet's random seed for predictions: 876543987
     thread_local! {
-        static SEED: Cell<u64> = Cell::new(876543987);
+        static SEED: Cell<u64> = const { Cell::new(876543987) };
     }
 
-    pub fn random<T: Default>() -> f64 {
+    pub fn random() -> f64 {
         // Simple LCG (Linear Congruential Generator) for reproducible randomness
         SEED.with(|seed| {
             let current = seed.get();
@@ -490,7 +490,7 @@ fn holidays_with_windows() {
         .map(|i| {
             let base = 50.0;
             // Days 8-12 are elevated (holiday on day 10 with ±2 day window)
-            if i >= 8 && i <= 12 {
+            if (8..=12).contains(&i) {
                 base + 20.0
             } else {
                 base
@@ -661,7 +661,6 @@ fn add_country_holidays_stores_country() {
 
     // Country holidays feature requires Python integration to actually fetch dates
     // This test just verifies the method doesn't error
-    assert!(true);
 }
 
 // ===== M5 Tests: Serialization and API Polish =====
