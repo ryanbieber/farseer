@@ -14,7 +14,7 @@ requires-python = ">=3.11"
 authors = [
     {name = "Ryan Bieber", email = "ryan.bieber@protonmail.com"},
 ]
-license = {text = "MIT"}
+license = {text = "GPL-3.0-or-later"}
 keywords = ["forecasting", "time-series", "prophet", "bayesian", "rust"]
 classifiers = [
     "Programming Language :: Rust",
@@ -29,7 +29,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Information Analysis",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS",
 ]
