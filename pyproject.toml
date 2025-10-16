@@ -6,7 +6,7 @@ requires = [
 build-backend = "maturin"
 
 [project]
-name = "seer"
+name = "farseer"
 dynamic = ["version"]
 description = "Fast Bayesian time series forecasting in Rust, with Python bindings"
 readme = "README.md"
@@ -68,9 +68,9 @@ Repository = "https://github.com/ryanbieber/seer"
 Issues = "https://github.com/ryanbieber/seer/issues"
 
 [tool.maturin]
-# Python source files are in the seer/ directory
+# Python source files are in the farseer/ directory
 python-source = "."
-# The Rust module will be named _seer and placed inside the seer package
-module-name = "seer._seer"
+# The Rust module will be named _farseer and placed inside the farseer package
+module-name = "farseer._farseer"
 # Include Stan model and related files
 include = ["stan/*"]

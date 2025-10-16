@@ -81,7 +81,7 @@ impl StanModel {
         let model_path = possible_paths
             .iter()
             .find(|p| p.exists())
-            .ok_or_else(|| crate::SeerError::StanError(
+            .ok_or_else(|| crate::FarseerError::StanError(
                 format!(
                     "Prophet model binary not found. Tried:\n  - {}\nSet PROPHET_MODEL_PATH environment variable to specify location.",
                     possible_paths.iter()

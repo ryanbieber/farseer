@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn test_hstack_single_block() {
         let block = vec![vec![1.0, 2.0], vec![3.0, 4.0]];
-        let result = hstack(&[block.clone()]);
+        let result = hstack(std::slice::from_ref(&block));
         assert_eq!(result, block);
     }
 

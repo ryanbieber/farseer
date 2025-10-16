@@ -1,8 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: [ master, main, develop ]
   pull_request:
     branches: [ master, main, develop ]
 
@@ -15,23 +13,28 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ['3.13']
-    
+
     defaults:
       run:
         shell: bash
-   
+
     steps:
       - uses: actions/checkout@v4
-     
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           architecture: 'x64'
-     
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-     
+
       - name: Cache Rust dependencies
         uses: actions/cache@v4
         with:
@@ -42,18 +45,17 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-     
+
       - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install maturin pytest pytest-cov cmdstanpy
-     
+          uv pip install --system maturin pytest pytest-cov cmdstanpy
+
       - name: Install and compile CmdStan
         run: |
           python -c "import cmdstanpy; cmdstanpy.install_cmdstan(compiler=True, verbose=True)"
         env:
           STAN_BACKEND: CMDSTANPY
-     
+
       - name: Compile Prophet Stan model
         run: |
           python << 'EOF'
@@ -61,7 +63,7 @@ jobs:
           import shutil
           from pathlib import Path
           import platform
-          
+
           # Compile the Stan model with threading support
           print("Compiling Prophet Stan model with threading support...")
           model = cmdstanpy.CmdStanModel(
@@ -69,38 +71,38 @@ jobs:
               cpp_options={"STAN_THREADS": True}
           )
           print(f"Compiled executable: {model.exe_file}")
-          
+
           # Determine platform-specific directory
           system = platform.system().lower()
           platform_dir = ""  # Use stan/ root directory for Linux
-          
+
           # Create platform directory and copy the binary
           target_dir = Path("stan")
           target_dir.mkdir(parents=True, exist_ok=True)
-          
+
           # Copy the compiled executable
           shutil.copy2(model.exe_file, target_dir / "prophet_model")
           (target_dir / "prophet_model").chmod(0o755)
-          
+
           print(f"✓ Binary installed at: {target_dir / 'prophet_model'}")
           print(f"  Size: {(target_dir / 'prophet_model').stat().st_size} bytes")
-          
+
           # Note: TBB libraries are not needed - they will be found from the system
           EOF
-     
+
       - name: Build and install package
         run: |
           maturin build --release
-          pip install target/wheels/*.whl
+          uv pip install --system target/wheels/*.whl
         env:
           PROPHET_MODEL_PATH: ${{ github.workspace }}/stan/prophet_model
-     
+
       - name: Run Python tests
         run: pytest tests/ -v --cov=seer --cov-report=xml
         env:
           PROPHET_MODEL_PATH: ${{ github.workspace }}/stan/prophet_model
           LD_LIBRARY_PATH: ${{ github.workspace }}/stan
-     
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
@@ -108,24 +110,24 @@ jobs:
           file: ./coverage.xml
           flags: unittests
           name: codecov-umbrella
-     
+
       - name: Run Rust tests
         run: cargo test --all-features
         env:
           PROPHET_MODEL_PATH: ${{ github.workspace }}/stan/prophet_model
           LD_LIBRARY_PATH: ${{ github.workspace }}/stan
- 
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-     
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.86.0
         with:
           components: rustfmt, clippy
-     
+
       - name: Cache Rust dependencies
         uses: actions/cache@v4
         with:
@@ -136,9 +138,9 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-lint-${{ hashFiles('**/Cargo.lock') }}
-     
+
       - name: Check formatting
         run: cargo fmt --all -- --check
-     
+
       - name: Run clippy
         run: cargo clippy --all-features -- -D warnings

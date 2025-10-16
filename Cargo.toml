@@ -1,5 +1,5 @@
 [package]
-name = "seer"
+name = "farseer"
 version = "0.3.4"
 edition = "2021"
 description = "A high-performance time series forecasting library with Prophet-compatible API"
@@ -12,7 +12,7 @@ keywords = ["forecasting", "time-series", "prophet", "statistics"]
 categories = ["science", "algorithms"]
 
 [lib]
-name = "seer"
+name = "farseer"
 crate-type = ["cdylib", "rlib"]  # cdylib for Python, rlib for Rust
 
 [dependencies]
@@ -35,7 +35,7 @@ numpy = "0.26"  # For numpy array conversion
 pythonize = "0.26"  # For serialization
 
 [package.metadata.maturin]
-name = "seer"
+name = "farseer"
 
 [dev-dependencies]
 approx = "0.5"

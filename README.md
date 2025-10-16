@@ -1,10 +1,10 @@
-# Seer
+# Farseer
 
 <div align="center">
 
 ## Forecasting at Scale, Powered by Rust
 
-A high-performance time series forecasting library built in Rust with Python bindings. Seer provides Prophet-like forecasting capabilities with the speed and reliability of Rust.
+A high-performance time series forecasting library built in Rust with Python bindings. Farseer provides Prophet-like forecasting capabilities with the speed and reliability of Rust.
 
 [![Tests](https://img.shields.io/badge/tests-97%20passing-brightgreen)]()
 [![Python](https://img.shields.io/badge/python-3.8+-blue)]()
@@ -16,44 +16,44 @@ A high-performance time series forecasting library built in Rust with Python bin
 
 ---
 
-> **⚡ Now using Polars!** Seer uses Polars as its primary DataFrame library for 5-10x better performance. Pandas DataFrames are still supported for backward compatibility and automatically converted.
+> **⚡ Now using Polars!** Farseer uses Polars as its primary DataFrame library for 5-10x better performance. Pandas DataFrames are still supported for backward compatibility and automatically converted.
 
-## What is Seer?
+## What is Farseer?
 
-Seer is a procedure for forecasting time series data based on an additive model where non-linear trends are fit with yearly, weekly, and daily seasonality, plus holiday effects. It works best with time series that have strong seasonal effects and several seasons of historical data.
+Farseer is a procedure for forecasting time series data based on an additive model where non-linear trends are fit with yearly, weekly, and daily seasonality, plus holiday effects. It works best with time series that have strong seasonal effects and several seasons of historical data.
 
-**Seer is robust to missing data and shifts in the trend, and typically handles outliers well.**
+**Farseer is robust to missing data and shifts in the trend, and typically handles outliers well.**
 
-Inspired by Facebook's Prophet, Seer is built from the ground up in **Rust** for maximum performance while maintaining a familiar, easy-to-use Python API.
+Inspired by Facebook's Prophet, Farseer is built from the ground up in **Rust** for maximum performance while maintaining a familiar, easy-to-use Python API.
 
 ### Fast and Accurate
 
-Seer is used for producing reliable forecasts for planning and goal setting. We fit models using **Rust-optimized algorithms** and **CmdStan's L-BFGS optimizer**, so you get forecasts in just seconds, even on large datasets. With **automatic multithreading**, Seer scales effortlessly across CPU cores.
+Farseer is used for producing reliable forecasts for planning and goal setting. We fit models using **Rust-optimized algorithms** and **CmdStan's L-BFGS optimizer**, so you get forecasts in just seconds, even on large datasets. With **automatic multithreading**, Farseer scales effortlessly across CPU cores.
 
 ### Fully Automatic
 
-Get a reasonable forecast on messy data with no manual effort. Seer is robust to outliers, missing data, and dramatic changes in your time series. Just pass your data and get started.
+Get a reasonable forecast on messy data with no manual effort. Farseer is robust to outliers, missing data, and dramatic changes in your time series. Just pass your data and get started.
 
-### Tunable Forecasts  
+### Tunable Forecasts
 
-The Seer procedure includes many possibilities for users to tweak and adjust forecasts. You can use human-interpretable parameters to improve your forecast by adding your domain knowledge.
+The Farseer procedure includes many possibilities for users to tweak and adjust forecasts. You can use human-interpretable parameters to improve your forecast by adding your domain knowledge.
 
 ### Weighted Observations
 
 Give more importance to recent or reliable observations using **observation weights**. Perfect for:
 - Emphasizing recent data in evolving trends
-- Downweighting outliers or unreliable measurements  
+- Downweighting outliers or unreliable measurements
 - Incorporating data quality information
 
 ### Available for Python (Rust Core)
 
-We've implemented Seer in Rust for maximum performance, with Python bindings via **PyO3**. Use Python's familiar syntax while benefiting from Rust's speed. The library works seamlessly with both **Polars** (recommended) and **Pandas** DataFrames.
+We've implemented Farseer in Rust for maximum performance, with Python bindings via **PyO3**. Use Python's familiar syntax while benefiting from Rust's speed. The library works seamlessly with both **Polars** (recommended) and **Pandas** DataFrames.
 
 ---
 
-## Why Seer?
+## Why Farseer?
 
-| Feature | Seer | Prophet |
+| Feature | Farseer | Prophet |
 |---------|------|---------|
 | **� Performance** | Rust-powered, 5-10x faster | Python/Stan |
 | **⚡ Multithreading** | Automatic parallel optimization | Single-threaded by default |
@@ -71,11 +71,11 @@ We've implemented Seer in Rust for maximum performance, with Python bindings via
 
 ```bash
 # From PyPI (when published)
-pip install seer
+pip install farseer
 
 # Development install from source
-git clone https://github.com/ryanbieber/seer
-cd seer
+git clone https://github.com/ryanbieber/farseer
+cd farseer
 
 # Set environment variable for Python 3.13+ compatibility
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
@@ -109,9 +109,9 @@ forecast = m.predict(future)
 print(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail())
 ```
 
-**With Seer (nearly identical!):**
+**With Farseer (nearly identical!):**
 ```python
-from seer import Seer
+from farseer import Farseer
 import polars as pl
 from datetime import datetime
 
@@ -120,7 +120,7 @@ df = pl.DataFrame({
     'y': range(100)
 })
 
-m = Seer()  # That's it! Same API
+m = Farseer()  # That's it! Same API
 m.fit(df)
 future = m.make_future_dataframe(periods=30)
 forecast = m.predict(future)
@@ -129,10 +129,10 @@ print(forecast.select(['ds', 'yhat', 'yhat_lower', 'yhat_upper']).tail())
 
 ### Output Comparison
 
-Both Seer and Prophet produce comparable forecasts with uncertainty intervals:
+Both Farseer and Prophet produce comparable forecasts with uncertainty intervals:
 
 ```python
-# Seer Output (Polars DataFrame)
+# Farseer Output (Polars DataFrame)
 shape: (5, 4)
 ┌─────────────────────┬────────────┬─────────────┬─────────────┐
 │ ds                  ┆ yhat       ┆ yhat_lower  ┆ yhat_upper  │
@@ -183,7 +183,7 @@ Weight observations by importance or reliability:
 import polars as pl
 import numpy as np
 from datetime import datetime
-from seer import Seer
+from farseer import Farseer
 
 # Create data with weights
 df = pl.DataFrame({
@@ -192,8 +192,8 @@ df = pl.DataFrame({
     'weight': [2.0 if i < 50 else 1.0 for i in range(100)]  # Weight recent data more
 })
 
-# Fit with weights - Seer automatically detects 'weight' column
-m = Seer()
+# Fit with weights - Farseer automatically detects 'weight' column
+m = Farseer()
 m.fit(df)
 forecast = m.predict(m.make_future_dataframe(periods=30))
 ```
@@ -206,7 +206,7 @@ forecast = m.predict(m.make_future_dataframe(periods=30))
 
 **Comparison with Prophet:**
 
-| Feature | Seer | Prophet |
+| Feature | Farseer | Prophet |
 |---------|------|---------|
 | **Weights API** | `df['weight']` column (automatic) | Not directly supported |
 | **Implementation** | Native in Stan model | Requires manual workarounds |
@@ -214,10 +214,10 @@ forecast = m.predict(m.make_future_dataframe(periods=30))
 
 #### Automatic Multithreading 🚀
 
-Seer automatically uses all available CPU cores:
+Farseer automatically uses all available CPU cores:
 
 ```python
-from seer import Seer
+from farseer import Farseer
 import polars as pl
 import numpy as np
 from datetime import datetime
@@ -229,23 +229,23 @@ df = pl.DataFrame({
 })
 
 # Fit automatically uses all CPU cores for Stan optimization
-m = Seer()
+m = Farseer()
 m.fit(df)  # ⚡ Multithreaded by default!
 ```
 
 **Performance on 1000 observations:**
-- **Seer (8 cores)**: ~2-3 seconds
-- **Seer (1 core)**: ~8-10 seconds  
+- **Farseer (8 cores)**: ~2-3 seconds
+- **Farseer (1 core)**: ~8-10 seconds
 - **Prophet (1 core)**: ~15-20 seconds
 
-The speedup scales with CPU cores and dataset size. Seer automatically:
+The speedup scales with CPU cores and dataset size. Farseer automatically:
 - Detects available CPU cores
 - Configures optimal grainsize for parallel computation
 - Uses CmdStan's `reduce_sum` for parallel likelihood evaluation
 
 **Under the hood:**
 ```rust
-// Seer's Stan model uses reduce_sum for automatic parallelization
+// Farseer's Stan model uses reduce_sum for automatic parallelization
 target += reduce_sum(
     partial_sum,      // Likelihood computation
     n_seq,            // Data indices
@@ -260,13 +260,13 @@ target += reduce_sum(
 
 ### Real-World Forecasting Example
 
-Here's a complete example showing how easy Seer is to use:
+Here's a complete example showing how easy Farseer is to use:
 
 ```python
 import polars as pl
 import numpy as np
 from datetime import datetime
-from seer import Seer
+from farseer import Farseer
 
 # Generate sample data with trend + seasonality + noise
 dates = pl.date_range(datetime(2020, 1, 1), periods=365, interval='1d', eager=True)
@@ -279,7 +279,7 @@ y = trend + seasonality + noise + 100
 df = pl.DataFrame({'ds': dates, 'y': y})
 
 # Fit model
-model = Seer()
+model = Farseer()
 model.fit(df)
 
 # Forecast 90 days ahead
@@ -314,22 +314,22 @@ python examples/multithreaded_stan.py
 
 ---
 
-## Side-by-Side: Seer vs Prophet
+## Side-by-Side: Farseer vs Prophet
 
 ### API Comparison
 
-| Operation | Prophet | Seer |
+| Operation | Prophet | Farseer |
 |-----------|---------|------|
-| **Import** | `from prophet import Prophet` | `from seer import Seer` |
-| **Create Model** | `m = Prophet()` | `m = Seer()` |
+| **Import** | `from prophet import Prophet` | `from farseer import Farseer` |
+| **Create Model** | `m = Prophet()` | `m = Farseer()` |
 | **Fit** | `m.fit(df)` | `m.fit(df)` |
 | **Predict** | `m.predict(future)` | `m.predict(future)` |
 | **Future DataFrame** | `m.make_future_dataframe(30)` | `m.make_future_dataframe(30)` |
 | **Add Seasonality** | `m.add_seasonality('monthly', 30.5, 5)` | `m.add_seasonality('monthly', 30.5, 5)` |
 | **Add Holidays** | `m.add_country_holidays('US')` | `m.add_country_holidays('US')` |
-| **Logistic Growth** | `Prophet(growth='logistic')` | `Seer(growth='logistic')` |
+| **Logistic Growth** | `Prophet(growth='logistic')` | `Farseer(growth='logistic')` |
 | **Save Model** | `model.save('model.json')` | `model.save('model.json')` |
-| **Load Model** | `Prophet.load('model.json')` | `Seer.load('model.json')` |
+| **Load Model** | `Prophet.load('model.json')` | `Farseer.load('model.json')` |
 
 ### Feature Comparison
 
@@ -352,10 +352,10 @@ m = Prophet(
     interval_width=0.8
 )
 
-# Seer (identical parameters!)
-from seer import Seer
+# Farseer (identical parameters!)
+from farseer import Farseer
 
-m = Seer(
+m = Farseer(
     growth='linear',
     n_changepoints=25,
     changepoint_range=0.8,
@@ -375,7 +375,7 @@ m = Seer(
 | Library | Single Thread | Multi-Thread | Memory |
 |---------|--------------|--------------|--------|
 | **Prophet** | ~15-20s | N/A (not supported) | ~200MB |
-| **Seer** | ~8-10s | **~2-3s (8 cores)** ⚡ | ~50MB |
+| **Farseer** | ~8-10s | **~2-3s (8 cores)** ⚡ | ~50MB |
 
 **Speedup: 5-8x faster** with multithreading!
 
@@ -393,9 +393,9 @@ from prophet import Prophet
 # 3. Post-process forecasts
 ```
 
-**Seer** (native support):
+**Farseer** (native support):
 ```python
-from seer import Seer
+from farseer import Farseer
 import polars as pl
 
 df = pl.DataFrame({
@@ -404,7 +404,7 @@ df = pl.DataFrame({
     'weight': [2.0, 1.0, 1.0, ...]  # Simple!
 })
 
-m = Seer()
+m = Farseer()
 m.fit(df)  # Weights automatically used in optimization
 ```
 
@@ -420,20 +420,20 @@ m = Prophet()
 m.fit(df)  # Only pandas
 ```
 
-**Seer** (Polars + Pandas):
+**Farseer** (Polars + Pandas):
 ```python
 import polars as pl
-from seer import Seer
+from farseer import Farseer
 
 # Polars (recommended, 5-10x faster)
 df_polars = pl.DataFrame({'ds': dates, 'y': values})
-m = Seer()
+m = Farseer()
 m.fit(df_polars)
 
 # Pandas (automatic conversion)
 import pandas as pd
 df_pandas = pd.DataFrame({'ds': dates, 'y': values})
-m = Seer()
+m = Farseer()
 m.fit(df_pandas)  # Automatically converted to Polars
 ```
 
@@ -447,14 +447,14 @@ m.fit(df_pandas)  # Automatically converted to Polars
 import polars as pl
 import numpy as np
 from datetime import datetime
-from seer import Seer
+from farseer import Farseer
 
 # Hourly data
 df_hourly = pl.DataFrame({
     'ds': pl.date_range(datetime(2020, 1, 1), periods=168, interval='1h', eager=True),
     'y': np.random.randn(168).cumsum()
 })
-m = Seer(yearly_seasonality=False, weekly_seasonality=False)
+m = Farseer(yearly_seasonality=False, weekly_seasonality=False)
 m.fit(df_hourly)
 future = m.make_future_dataframe(periods=24, freq='H')  # 24 hours ahead
 forecast = m.predict(future)
@@ -473,12 +473,12 @@ future = m.make_future_dataframe(periods=3, freq='Y')   # 3 years ahead
 
 ```python
 # Add monthly seasonality
-m = Seer()
+m = Farseer()
 m.add_seasonality('monthly', period=30.0, fourier_order=5)
 m.fit(df)
 
 # Add quarterly seasonality with multiplicative mode
-m = Seer(seasonality_mode='multiplicative')
+m = Farseer(seasonality_mode='multiplicative')
 m.add_seasonality('quarterly', period=91.25, fourier_order=8, mode='multiplicative')
 m.fit(df)
 ```
@@ -487,12 +487,12 @@ m.fit(df)
 
 ```python
 # Add holiday effects
-m = Seer()
+m = Farseer()
 m.add_holidays('new_year', ['2020-01-01', '2021-01-01'])
 m.fit(df)
 
 # Add country holidays
-m = Seer()
+m = Farseer()
 m.add_country_holidays('US')
 m.fit(df)
 ```
@@ -501,7 +501,7 @@ m.fit(df)
 
 ```python
 import polars as pl
-from seer import Seer
+from farseer import Farseer
 
 # Model with capacity constraint
 df = pl.DataFrame({
@@ -510,7 +510,7 @@ df = pl.DataFrame({
     'cap': [100.0] * len(dates)  # Set capacity
 })
 
-m = Seer(growth='logistic')
+m = Farseer(growth='logistic')
 m.fit(df)
 
 future = m.make_future_dataframe(periods=30)
@@ -525,11 +525,11 @@ forecast = m.predict(future)
 m.save('model.json')
 
 # Load from file
-m_loaded = Seer.load('model.json')
+m_loaded = Farseer.load('model.json')
 
 # Or use JSON strings
 json_str = m.to_json()
-m_loaded = Seer.from_json(json_str)
+m_loaded = Farseer.from_json(json_str)
 ```
 
 ---
@@ -539,7 +539,7 @@ m_loaded = Seer.from_json(json_str)
 ### Model Initialization
 
 ```python
-model = Seer(
+model = Farseer(
     growth='linear',              # 'linear', 'logistic', or 'flat'
     n_changepoints=25,            # Number of potential changepoints
     changepoint_range=0.8,        # Proportion of history for changepoints
@@ -622,13 +622,13 @@ model.add_country_holidays('US')
 model.save('model.json')
 
 # Load from file
-model = Seer.load('model.json')
+model = Farseer.load('model.json')
 
 # Serialize to string
 json_str = model.to_json()
 
 # Deserialize from string
-model = Seer.from_json(json_str)
+model = Farseer.from_json(json_str)
 ```
 
 ### Visualization Methods
@@ -701,11 +701,11 @@ Predictions are returned as a Polars DataFrame with columns matching Facebook Pr
 Following standard PyO3/maturin best practices for mixed Python/Rust projects:
 
 ```
-seer/
-├── seer/                     # Python package (at root)
+farseer/
+├── farseer/                     # Python package (at root)
 │   └── __init__.py          # Python wrapper with enhanced API
 │
-├── src/                      # Rust source code  
+├── src/                      # Rust source code
 │   ├── lib.rs               # PyO3 bindings
 │   └── core/                # Core Rust implementation
 │       ├── model.rs         # Forecasting model
@@ -737,11 +737,11 @@ seer/
 
 ## Architecture
 
-Seer uses a layered architecture for performance and maintainability:
+Farseer uses a layered architecture for performance and maintainability:
 
 ```
 ┌─────────────────────────────────┐
-│   Python API (seer.Seer)        │  ← High-level scikit-learn-like interface
+│   Python API (farseer.Farseer)        │  ← High-level scikit-learn-like interface
 ├─────────────────────────────────┤
 │   PyO3 Bindings (src/lib.rs)    │  ← Python ↔ Rust bridge
 ├─────────────────────────────────┤
@@ -760,8 +760,8 @@ Seer uses a layered architecture for performance and maintainability:
 
 ```bash
 # Clone repository
-git clone https://github.com/ryanbieber/seer
-cd seer
+git clone https://github.com/ryanbieber/farseer
+cd farseer
 
 # Set environment variable for Python 3.13+ compatibility
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
@@ -789,7 +789,7 @@ Note: Some test failures are pre-existing functional issues (Stan optimization, 
 
 The project was restructured to follow PyO3/maturin best practices:
 
-- ✅ Python package moved from `python/seer/` to `seer/` at root
+- ✅ Python package moved from `python/farseer/` to `farseer/` at root
 - ✅ Rust module renamed to `_seer` (private extension)
 - ✅ Clean relative imports (no sys.path manipulation)
 - ✅ Added `#[pyclass(subclass)]` for Python inheritance
@@ -800,7 +800,7 @@ See [RESTRUCTURING_COMPLETE.md](RESTRUCTURING_COMPLETE.md) for full details.
 
 ### Deployment
 
-Seer uses automated deployment to PyPI via GitHub Actions. The workflow:
+Farseer uses automated deployment to PyPI via GitHub Actions. The workflow:
 
 1. **Tests** - Runs full test suite on Python 3.9-3.13
 2. **Builds** - Creates wheels for Linux, Windows, and macOS
@@ -825,9 +825,9 @@ git push origin v0.1.0
 
 ### Speed Comparison
 
-Seer's Rust core provides significant performance advantages:
+Farseer's Rust core provides significant performance advantages:
 
-| Dataset Size | Prophet | Seer (Single Core) | Seer (Multi-Core) | Speedup |
+| Dataset Size | Prophet | Farseer (Single Core) | Farseer (Multi-Core) | Speedup |
 |--------------|---------|-------------------|-------------------|---------|
 | 100 obs | ~5s | ~2s | ~1.5s | 3.3x |
 | 500 obs | ~10s | ~4s | ~2s | 5x |
@@ -844,13 +844,13 @@ Seer's Rust core provides significant performance advantages:
 
 ### Multithreading Performance
 
-Seer automatically parallelizes across CPU cores:
+Farseer automatically parallelizes across CPU cores:
 
 ```python
 import polars as pl
 import numpy as np
 from datetime import datetime
-from seer import Seer
+from farseer import Farseer
 import time
 
 # Benchmark function
@@ -860,13 +860,13 @@ def benchmark_fit(n_obs, n_runs=3):
         dates = pl.date_range(datetime(2018, 1, 1), periods=n_obs, interval='1d', eager=True)
         y = np.random.randn(n_obs).cumsum() + 100
         df = pl.DataFrame({'ds': dates, 'y': y})
-        
+
         start = time.time()
-        m = Seer()
+        m = Farseer()
         m.fit(df)
         elapsed = time.time() - start
         times.append(elapsed)
-    
+
     return np.mean(times), np.std(times)
 
 # Run benchmarks
@@ -885,7 +885,7 @@ for n in [100, 500, 1000, 2000]:
 
 ## Comparison with Prophet
 
-Seer provides a Prophet-compatible API while leveraging Rust for performance:
+Farseer provides a Prophet-compatible API while leveraging Rust for performance:
 
 **Similarities:**
 - Same DataFrame-based API (`ds`, `y`, `cap`, `weight` columns)
@@ -896,7 +896,7 @@ Seer provides a Prophet-compatible API while leveraging Rust for performance:
 
 **Key Differences:**
 
-| Feature | Prophet | Seer |
+| Feature | Prophet | Farseer |
 |---------|---------|------|
 | **Performance** | Python/Stan | Rust (5-10x faster) |
 | **Multithreading** | No | Yes (automatic) |
@@ -913,9 +913,9 @@ m = Prophet()
 m.fit(df)
 forecast = m.predict(future)
 
-# Seer (nearly identical!)
-from seer import Seer
-m = Seer()
+# Farseer (nearly identical!)
+from farseer import Farseer
+m = Farseer()
 m.fit(df)
 forecast = m.predict(future)
 ```
@@ -959,14 +959,14 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Citation
 
-If you use Seer in academic work, please cite:
+If you use Farseer in academic work, please cite:
 
 ```bibtex
 @software{seer2025,
-  title={Seer: Fast Bayesian Time Series Forecasting},
+  title={Farseer: Fast Bayesian Time Series Forecasting},
   author={Bieber, Ryan},
   year={2025},
-  url={https://github.com/ryanbieber/seer}
+  url={https://github.com/ryanbieber/farseer}
 }
 ```
 
@@ -993,13 +993,13 @@ Special thanks to the Prophet team for pioneering accessible Bayesian time serie
 
 <div align="center">
 
-**Version**: 0.2.0  
-**Status**: Active Development  
-**Last Updated**: October 14, 2025  
-**Python**: 3.8+ (3.13 supported)  
+**Version**: 0.2.0
+**Status**: Active Development
+**Last Updated**: October 14, 2025
+**Python**: 3.8+ (3.13 supported)
 **Rust**: 2021 edition
 
-[⭐ Star on GitHub](https://github.com/ryanbieber/seer) | [📝 Report Issue](https://github.com/ryanbieber/seer/issues) | [💬 Discussions](https://github.com/ryanbieber/seer/discussions)
+[⭐ Star on GitHub](https://github.com/ryanbieber/farseer) | [📝 Report Issue](https://github.com/ryanbieber/farseer/issues) | [💬 Discussions](https://github.com/ryanbieber/farseer/discussions)
 
 Made with ❤️ and 🦀 by [Ryan Bieber](https://github.com/ryanbieber)
 

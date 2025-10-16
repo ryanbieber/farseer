@@ -129,7 +129,7 @@ transformed data {
   matrix[T, K] X_sa = X .* rep_matrix(s_a', T);
   matrix[T, K] X_sm = X .* rep_matrix(s_m', T);
   array[T] int n_seq;
-  
+
   // Create sequence of indices for reduce_sum
   for (n in 1:T) {
     n_seq[n] = n;
@@ -161,7 +161,7 @@ model {
   m ~ normal(0, 5);
   delta ~ double_exponential(0, tau);
   sigma_obs ~ normal(0, 0.5);
-  
+
   // Only apply beta prior if there are regressors
   if (K > 0) {
     for (i in 1:K) {

@@ -110,7 +110,7 @@ struct RegressorBlock {
     end: usize,
 }
 
-pub struct Seer {
+pub struct Farseer {
     trend: TrendType,
     n_changepoints: usize,
     changepoint_range: f64,
@@ -208,7 +208,7 @@ impl SeasonalityConfig {
     }
 }
 
-impl Seer {
+impl Farseer {
     pub fn new() -> Self {
         Self {
             trend: TrendType::Linear,
@@ -259,7 +259,7 @@ impl Seer {
         // Note: NaN passes this validation (both comparisons are false).
         // If you want to reject NaN, add an explicit check: if range.is_nan() { ... }
         if !(0.0..=1.0).contains(&range) {
-            return Err(crate::SeerError::DataValidation(format!(
+            return Err(crate::FarseerError::DataValidation(format!(
                 "changepoint_range must be between 0 and 1, got {}",
                 range
             )));
@@ -324,7 +324,7 @@ impl Seer {
             "additive" => SeasonalityMode::Additive,
             "multiplicative" => SeasonalityMode::Multiplicative,
             _ => {
-                return Err(crate::SeerError::DataValidation(format!(
+                return Err(crate::FarseerError::DataValidation(format!(
                     "Invalid seasonality mode: {}. Must be 'additive' or 'multiplicative'.",
                     mode
                 )))
@@ -346,7 +346,7 @@ impl Seer {
             .iter()
             .map(|s| {
                 parse_ds(s).ok_or_else(|| {
-                    crate::SeerError::DataValidation(format!("Invalid date format: {}", s))
+                    crate::FarseerError::DataValidation(format!("Invalid date format: {}", s))
                 })
             })
             .collect::<std::result::Result<_, _>>()?;
@@ -593,7 +593,7 @@ impl Seer {
 
                 updated_regressors.push(updated_config);
             } else {
-                return Err(crate::SeerError::DataValidation(format!(
+                return Err(crate::FarseerError::DataValidation(format!(
                     "Regressor '{}' not found in dataframe",
                     config.name
                 )));
@@ -784,7 +784,7 @@ impl Seer {
         regressors: &std::collections::HashMap<String, Vec<f64>>,
     ) -> Result<ForecastResult> {
         if !self.fitted {
-            return Err(crate::SeerError::Prediction(
+            return Err(crate::FarseerError::Prediction(
                 "Model must be fitted before prediction".to_string(),
             ));
         }
@@ -794,7 +794,7 @@ impl Seer {
         let mut t: Vec<f64> = Vec::with_capacity(ds.len());
         for s in ds.iter() {
             let dt = parse_ds(s).ok_or_else(|| {
-                crate::SeerError::Prediction(format!("Invalid date format: {}", s))
+                crate::FarseerError::Prediction(format!("Invalid date format: {}", s))
             })?;
             let us = (dt - t0).num_microseconds().unwrap_or(0) as f64 / 1_000_000.0;
             let ti = if self.t_scale > 0.0 {
@@ -817,7 +817,7 @@ impl Seer {
                 let cap_vec_unscaled = if let Some(cap_provided) = cap {
                     // Validate cap length matches ds length
                     if cap_provided.len() != ds.len() {
-                        return Err(crate::SeerError::Prediction(format!(
+                        return Err(crate::FarseerError::Prediction(format!(
                             "Cap length ({}) must match ds length ({})",
                             cap_provided.len(),
                             ds.len()
@@ -1002,7 +1002,7 @@ impl Seer {
                     if let Some(regressor_values) = regressors.get(&config.name) {
                         // Validate length
                         if regressor_values.len() != ds.len() {
-                            return Err(crate::SeerError::Prediction(format!(
+                            return Err(crate::FarseerError::Prediction(format!(
                                 "Regressor '{}' length ({}) must match prediction length ({})",
                                 config.name,
                                 regressor_values.len(),
@@ -1039,7 +1039,7 @@ impl Seer {
                             }
                         }
                     } else {
-                        return Err(crate::SeerError::Prediction(format!(
+                        return Err(crate::FarseerError::Prediction(format!(
                             "Regressor '{}' data not provided for prediction",
                             config.name
                         )));
@@ -1159,7 +1159,7 @@ impl Seer {
         include_history: bool,
     ) -> Result<Vec<String>> {
         if !self.fitted {
-            return Err(crate::SeerError::Prediction(
+            return Err(crate::FarseerError::Prediction(
                 "Model must be fitted before making future dates".to_string(),
             ));
         }
@@ -1172,7 +1172,7 @@ impl Seer {
 
         // Determine last timestamp from history
         let last_ts = history.ds.last().and_then(|s| parse_ds(s)).ok_or_else(|| {
-            crate::SeerError::Prediction("Unable to parse last history date".to_string())
+            crate::FarseerError::Prediction("Unable to parse last history date".to_string())
         })?;
 
         // Support multiple frequencies: H (hourly), D (daily), W (weekly), M (monthly), Y (yearly)
@@ -1199,14 +1199,14 @@ impl Seer {
     ) -> Result<()> {
         // Validate fourier_order
         if fourier_order == 0 {
-            return Err(crate::SeerError::DataValidation(
+            return Err(crate::FarseerError::DataValidation(
                 "Fourier order must be greater than 0".to_string(),
             ));
         }
 
         // Check for duplicate names
         if self.seasonalities.iter().any(|s| s.name == name) {
-            return Err(crate::SeerError::DataValidation(format!(
+            return Err(crate::FarseerError::DataValidation(format!(
                 "Seasonality with name '{}' already exists",
                 name
             )));
@@ -1214,7 +1214,7 @@ impl Seer {
 
         // Check against built-in seasonality names
         if name == "yearly" || name == "weekly" || name == "daily" {
-            return Err(crate::SeerError::DataValidation(format!(
+            return Err(crate::FarseerError::DataValidation(format!(
                 "Cannot use reserved seasonality name '{}'",
                 name
             )));
@@ -1231,7 +1231,7 @@ impl Seer {
                 "additive" => SeasonalityMode::Additive,
                 "multiplicative" => SeasonalityMode::Multiplicative,
                 _ => {
-                    return Err(crate::SeerError::DataValidation(format!(
+                    return Err(crate::FarseerError::DataValidation(format!(
                         "Invalid seasonality mode: {}. Must be 'additive' or 'multiplicative'.",
                         mode_str
                     )))
@@ -1278,7 +1278,7 @@ impl Seer {
                 "additive" => SeasonalityMode::Additive,
                 "multiplicative" => SeasonalityMode::Multiplicative,
                 _ => {
-                    return Err(crate::SeerError::DataValidation(format!(
+                    return Err(crate::FarseerError::DataValidation(format!(
                         "Invalid holiday mode: {}. Must be 'additive' or 'multiplicative'.",
                         mode_str
                     )))
@@ -1314,14 +1314,14 @@ impl Seer {
         mode: Option<&str>,
     ) -> Result<()> {
         if self.fitted {
-            return Err(crate::SeerError::DataValidation(
+            return Err(crate::FarseerError::DataValidation(
                 "Regressors must be added prior to model fitting".to_string(),
             ));
         }
 
         // Check for duplicate names
         if self.regressors.iter().any(|r| r.name == name) {
-            return Err(crate::SeerError::DataValidation(format!(
+            return Err(crate::FarseerError::DataValidation(format!(
                 "Regressor with name '{}' already exists",
                 name
             )));
@@ -1331,7 +1331,7 @@ impl Seer {
 
         if let Some(scale) = prior_scale {
             if scale <= 0.0 {
-                return Err(crate::SeerError::DataValidation(
+                return Err(crate::FarseerError::DataValidation(
                     "Prior scale must be > 0".to_string(),
                 ));
             }
@@ -1340,7 +1340,7 @@ impl Seer {
 
         if let Some(std) = standardize {
             if !["auto", "true", "false"].contains(&std.to_lowercase().as_str()) {
-                return Err(crate::SeerError::DataValidation(
+                return Err(crate::FarseerError::DataValidation(
                     "standardize must be 'auto', 'true', or 'false'".to_string(),
                 ));
             }
@@ -1352,7 +1352,7 @@ impl Seer {
                 "additive" => SeasonalityMode::Additive,
                 "multiplicative" => SeasonalityMode::Multiplicative,
                 _ => {
-                    return Err(crate::SeerError::DataValidation(format!(
+                    return Err(crate::FarseerError::DataValidation(format!(
                         "Invalid regressor mode: {}. Must be 'additive' or 'multiplicative'.",
                         mode_str
                     )))
@@ -1477,25 +1477,25 @@ impl Seer {
     pub fn to_json(&self) -> Result<String> {
         let params = self.get_params();
         serde_json::to_string_pretty(&params)
-            .map_err(|e| crate::SeerError::DataValidation(format!("Serialization error: {}", e)))
+            .map_err(|e| crate::FarseerError::DataValidation(format!("Serialization error: {}", e)))
     }
 
     /// Deserialize model from JSON string
     pub fn from_json(json: &str) -> Result<Self> {
         let params: serde_json::Value = serde_json::from_str(json).map_err(|e| {
-            crate::SeerError::DataValidation(format!("Deserialization error: {}", e))
+            crate::FarseerError::DataValidation(format!("Deserialization error: {}", e))
         })?;
 
         // Parse trend type
-        let trend_str = params["trend"]
-            .as_str()
-            .ok_or_else(|| crate::SeerError::DataValidation("Missing trend field".to_string()))?;
+        let trend_str = params["trend"].as_str().ok_or_else(|| {
+            crate::FarseerError::DataValidation("Missing trend field".to_string())
+        })?;
         let trend = match trend_str {
             "Linear" => TrendType::Linear,
             "Logistic" => TrendType::Logistic,
             "Flat" => TrendType::Flat,
             _ => {
-                return Err(crate::SeerError::DataValidation(format!(
+                return Err(crate::FarseerError::DataValidation(format!(
                     "Invalid trend type: {}",
                     trend_str
                 )))
@@ -1654,7 +1654,7 @@ impl Seer {
     }
 }
 
-impl Default for Seer {
+impl Default for Farseer {
     fn default() -> Self {
         Self::new()
     }
