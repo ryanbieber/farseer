@@ -1,0 +1,4 @@
+theme: jekyll-theme-minimal
+title: Farseer
+description: High-performance time series forecasting in Rust with Python bindings
+show_downloads: true

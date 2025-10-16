@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Farseer - Forecasting at Scale, Powered by Rust</title>
+    <meta name="description" content="High-performance time series forecasting library built in Rust with Python bindings. Prophet-like forecasting with the speed and reliability of Rust.">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <span class="logo">⚡</span>
+                <span class="brand-name">Farseer</span>
+            </div>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#quickstart">Quick Start</a></li>
+                <li><a href="#examples">Examples</a></li>
+                <li><a href="#docs">Docs</a></li>
+                <li><a href="https://github.com/ryanbieber/seer" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1 class="hero-title">
+                    Forecasting at Scale,<br>
+                    <span class="gradient-text">Powered by Rust</span>
+                </h1>
+                <p class="hero-subtitle">
+                    High-performance time series forecasting with Prophet-like capabilities.<br>
+                    Built in Rust for maximum speed, with a familiar Python API.
+                </p>
+                <div class="hero-buttons">
+                    <a href="#quickstart" class="btn btn-primary">Get Started</a>
+                    <a href="https://github.com/ryanbieber/seer" class="btn btn-secondary">View on GitHub</a>
+                </div>
+                <div class="badges">
+                    <span class="badge">97 Tests Passing</span>
+                    <span class="badge">Python 3.11+</span>
+                    <span class="badge">Rust 2021</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <section id="features" class="features-section">
+        <div class="container">
+            <h2 class="section-title">Why Farseer?</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🚀</div>
+                    <h3>Blazing Fast</h3>
+                    <p>Rust-powered performance with automatic multithreading. Get forecasts in seconds, 5-10x faster than Prophet.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3>Accurate & Robust</h3>
+                    <p>Bayesian approach with uncertainty intervals. Handles missing data, outliers, and trend shifts automatically.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚖️</div>
+                    <h3>Weighted Observations</h3>
+                    <p>Native support for observation weights. Emphasize recent data or downweight outliers with ease.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Polars & Pandas</h3>
+                    <p>Works with both Polars (recommended, 5-10x faster) and Pandas DataFrames for backward compatibility.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔧</div>
+                    <h3>Fully Tunable</h3>
+                    <p>Multiple trend types, custom seasonality, holiday effects, and regressors. Add your domain knowledge.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h3>Prophet Compatible</h3>
+                    <p>Nearly identical API to Prophet. Migrate your existing code with minimal changes.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="comparison-section">
+        <div class="container">
+            <h2 class="section-title">Farseer vs Prophet</h2>
+            <div class="comparison-table-wrapper">
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Farseer</th>
+                            <th>Prophet</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Performance</td>
+                            <td><span class="highlight">Rust-powered, 5-10x faster</span></td>
+                            <td>Python/Stan</td>
+                        </tr>
+                        <tr>
+                            <td>Multithreading</td>
+                            <td><span class="highlight">Automatic parallel optimization</span></td>
+                            <td>Single-threaded by default</td>
+                        </tr>
+                        <tr>
+                            <td>Weighted Data</td>
+                            <td><span class="highlight">Native support</span></td>
+                            <td>Not directly supported</td>
+                        </tr>
+                        <tr>
+                            <td>DataFrames</td>
+                            <td><span class="highlight">Polars + Pandas</span></td>
+                            <td>Pandas only</td>
+                        </tr>
+                        <tr>
+                            <td>Deployment</td>
+                            <td><span class="highlight">Minimal dependencies</span></td>
+                            <td>Requires Stan, PyStan</td>
+                        </tr>
+                        <tr>
+                            <td>API</td>
+                            <td>Scikit-learn-like, Prophet-compatible</td>
+                            <td>Scikit-learn-like</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section id="quickstart" class="quickstart-section">
+        <div class="container">
+            <h2 class="section-title">Quick Start</h2>
+
+            <div class="install-section">
+                <h3>Installation</h3>
+                <div class="code-block">
+                    <pre><code># From PyPI (when published)
+pip install farseer
+
+# Development install from source
+git clone https://github.com/ryanbieber/seer
+cd seer
+export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1  # For Python 3.13+
+maturin develop --release</code></pre>
+                </div>
+            </div>
+
+            <div class="code-comparison">
+                <div class="code-example">
+                    <h3>Basic Usage (Polars - Recommended)</h3>
+                    <div class="code-block">
+                        <pre><code>from farseer import Farseer
+import polars as pl
+from datetime import datetime
+
+# Create data
+df = pl.DataFrame({
+    'ds': pl.date_range(
+        datetime(2020, 1, 1),
+        periods=100,
+        interval='1d',
+        eager=True
+    ),
+    'y': range(100)
+})
+
+# Fit and forecast
+m = Farseer()
+m.fit(df)
+future = m.make_future_dataframe(periods=30)
+forecast = m.predict(future)
+
+print(forecast.select(['ds', 'yhat', 'yhat_lower', 'yhat_upper']).tail())</code></pre>
+                    </div>
+                </div>
+
+                <div class="code-example">
+                    <h3>Prophet-Compatible (Pandas)</h3>
+                    <div class="code-block">
+                        <pre><code>from farseer import Farseer
+import pandas as pd
+
+# Create data
+df = pd.DataFrame({
+    'ds': pd.date_range('2020-01-01', periods=100),
+    'y': range(100)
+})
+
+# Fit and forecast - same API!
+m = Farseer()
+m.fit(df)
+future = m.make_future_dataframe(periods=30)
+forecast = m.predict(future)
+
+print(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail())</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="examples" class="examples-section">
+        <div class="container">
+            <h2 class="section-title">Examples</h2>
+            <div class="examples-grid">
+                <div class="example-card">
+                    <h3>🎯 Weighted Observations</h3>
+                    <p>Give more importance to recent or reliable data</p>
+                    <div class="code-block">
+                        <pre><code>import polars as pl
+import numpy as np
+from farseer import Farseer
+
+df = pl.DataFrame({
+    'ds': pl.date_range(...),
+    'y': np.random.randn(100).cumsum() + 50,
+    'weight': [2.0 if i < 50 else 1.0 for i in range(100)]
+})
+
+# Weights automatically detected!
+m = Farseer()
+m.fit(df)</code></pre>
+                    </div>
+                    <a href="examples.html#weights" class="example-link">Learn more →</a>
+                </div>
+
+                <div class="example-card">
+                    <h3>📈 Custom Regressors</h3>
+                    <p>Add additional variables to improve forecasts</p>
+                    <div class="code-block">
+                        <pre><code>from farseer import Farseer
+
+m = Farseer()
+
+# Add custom regressors
+m.add_regressor('temperature', prior_scale=10.0)
+m.add_regressor('is_weekend', mode='additive')
+m.add_regressor('promo', prior_scale=5.0)
+
+m.fit(train_df)
+forecast = m.predict(test_df)</code></pre>
+                    </div>
+                    <a href="examples.html#regressors" class="example-link">Learn more →</a>
+                </div>
+
+                <div class="example-card">
+                    <h3>🔄 Manual Changepoints</h3>
+                    <p>Specify known trend changes in your data</p>
+                    <div class="code-block">
+                        <pre><code>from farseer import Farseer
+
+# Specify exact changepoint dates
+changepoints = ['2021-01-01', '2022-01-01']
+
+m = Farseer(
+    changepoints=changepoints,
+    yearly_seasonality=True
+)
+
+m.fit(df)
+forecast = m.predict(future)</code></pre>
+                    </div>
+                    <a href="examples.html#changepoints" class="example-link">Learn more →</a>
+                </div>
+
+                <div class="example-card">
+                    <h3>🎄 Holiday Effects</h3>
+                    <p>Model special events and holidays</p>
+                    <div class="code-block">
+                        <pre><code>import polars as pl
+from farseer import Farseer
+
+holidays = pl.DataFrame({
+    'ds': pl.date_range(...),
+    'holiday': ['Christmas', 'New Year', ...],
+    'lower_window': 0,
+    'upper_window': 1
+})
+
+m = Farseer(holidays=holidays)
+m.fit(df)</code></pre>
+                    </div>
+                    <a href="examples.html#holidays" class="example-link">Learn more →</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="docs" class="docs-section">
+        <div class="container">
+            <h2 class="section-title">Documentation</h2>
+            <div class="docs-grid">
+                <a href="installation.html" class="doc-card">
+                    <div class="doc-icon">📦</div>
+                    <h3>Installation</h3>
+                    <p>Get started with Farseer on your system</p>
+                </a>
+                <a href="quickstart.html" class="doc-card">
+                    <div class="doc-icon">⚡</div>
+                    <h3>Quick Start Guide</h3>
+                    <p>Learn the basics in 5 minutes</p>
+                </a>
+                <a href="api.html" class="doc-card">
+                    <div class="doc-icon">📚</div>
+                    <h3>API Reference</h3>
+                    <p>Complete API documentation</p>
+                </a>
+                <a href="examples.html" class="doc-card">
+                    <div class="doc-icon">💡</div>
+                    <h3>Examples & Tutorials</h3>
+                    <p>Learn from real-world examples</p>
+                </a>
+                <a href="migration.html" class="doc-card">
+                    <div class="doc-icon">🔄</div>
+                    <h3>Migrating from Prophet</h3>
+                    <p>Switch from Prophet to Farseer</p>
+                </a>
+                <a href="performance.html" class="doc-card">
+                    <div class="doc-icon">🚀</div>
+                    <h3>Performance Guide</h3>
+                    <p>Optimize your forecasting workflow</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-section">
+        <div class="container">
+            <h2>Ready to get started?</h2>
+            <p>Start forecasting with the speed and reliability of Rust</p>
+            <div class="cta-buttons">
+                <a href="#quickstart" class="btn btn-primary btn-large">Get Started Now</a>
+                <a href="https://github.com/ryanbieber/seer" class="btn btn-secondary btn-large">Star on GitHub</a>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Farseer</h4>
+                    <p>High-performance time series forecasting in Rust</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="quickstart.html">Quick Start</a></li>
+                        <li><a href="examples.html">Examples</a></li>
+                        <li><a href="api.html">API Reference</a></li>
+                        <li><a href="https://github.com/ryanbieber/seer">GitHub</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="https://github.com/ryanbieber/seer/issues">Report Issues</a></li>
+                        <li><a href="https://github.com/ryanbieber/seer/discussions">Discussions</a></li>
+                        <li><a href="https://github.com/ryanbieber/seer/blob/master/CONTRIBUTING.md">Contributing</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="https://github.com/ryanbieber/seer/blob/master/LICENSE">MIT License</a></li>
+                        <li><a href="privacy.html">Privacy Policy</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024-2025 Farseer. Built with ❤️ and Rust.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
