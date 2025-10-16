@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Start - Farseer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        .page-header {
+            background: var(--dark-bg);
+            color: var(--text-light);
+            padding: 4rem 0 3rem;
+        }
+        .page-content {
+            padding: 3rem 0;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .step {
+            margin-bottom: 3rem;
+        }
+        .step h2 {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+        .step-number {
+            display: inline-block;
+            background: var(--gradient);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 40px;
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <a href="index.html" style="text-decoration: none; color: inherit; display: flex; align-items: center; gap: 0.5rem;">
+                    <span class="logo">⚡</span>
+                    <span class="brand-name">Farseer</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="index.html#features">Features</a></li>
+                <li><a href="quickstart.html">Quick Start</a></li>
+                <li><a href="examples.html">Examples</a></li>
+                <li><a href="index.html#docs">Docs</a></li>
+                <li><a href="https://github.com/ryanbieber/seer" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <header class="page-header">
+        <div class="container">
+            <h1>Quick Start Guide</h1>
+            <p>Get up and running with Farseer in 5 minutes</p>
+        </div>
+    </header>
+
+    <section class="page-content">
+        <div class="container">
+            <div class="step">
+                <h2><span class="step-number">1</span> Installation</h2>
+                <p>Install Farseer using pip or build from source:</p>
+
+                <h3>From PyPI (Recommended)</h3>
+                <div class="code-block">
+                    <pre><code>pip install farseer</code></pre>
+                </div>
+
+                <h3>From Source</h3>
+                <div class="code-block">
+                    <pre><code># Clone the repository
+git clone https://github.com/ryanbieber/seer
+cd seer
+
+# For Python 3.13+, set compatibility flag
+export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+
+# Build and install with maturin
+pip install maturin
+maturin develop --release</code></pre>
+                </div>
+
+                <h3>Prerequisites</h3>
+                <ul>
+                    <li>Python 3.11 or higher</li>
+                    <li>CmdStan (automatically installed with cmdstanpy)</li>
+                    <li>Rust toolchain (only for building from source)</li>
+                </ul>
+            </div>
+
+            <div class="step">
+                <h2><span class="step-number">2</span> Your First Forecast</h2>
+                <p>Create a simple forecast in just a few lines of code:</p>
+
+                <div class="code-block">
+                    <pre><code>import polars as pl
+from datetime import datetime
+from farseer import Farseer
+
+# Create sample data
+df = pl.DataFrame({
+    'ds': pl.date_range(
+        datetime(2020, 1, 1),
+        periods=100,
+        interval='1d',
+        eager=True
+    ),
+    'y': range(100)  # Simple linear trend
+})
+
+# Create and fit model
+m = Farseer()
+m.fit(df)
+
+# Make future predictions
+future = m.make_future_dataframe(periods=30)
+forecast = m.predict(future)
+
+# View results
+print(forecast.select(['ds', 'yhat', 'yhat_lower', 'yhat_upper']).tail())</code></pre>
+                </div>
+
+                <p>Output:</p>
+                <div class="code-block">
+                    <pre><code>shape: (5, 4)
+┌─────────────────────┬────────────┬─────────────┬─────────────┐
+│ ds                  ┆ yhat       ┆ yhat_lower  ┆ yhat_upper  │
+│ ---                 ┆ ---        ┆ ---         ┆ ---         │
+│ datetime[μs]        ┆ f64        ┆ f64         ┆ f64         │
+╞═════════════════════╪════════════╪═════════════╪═════════════╡
+│ 2020-04-06 00:00:00 ┆ 126.234    ┆ 123.891     ┆ 128.577     │
+│ 2020-04-07 00:00:00 ┆ 127.234    ┆ 124.891     ┆ 129.577     │
+│ 2020-04-08 00:00:00 ┆ 128.234    ┆ 125.891     ┆ 130.577     │
+│ 2020-04-09 00:00:00 ┆ 129.234    ┆ 126.891     ┆ 131.577     │
+│ 2020-04-10 00:00:00 ┆ 130.234    ┆ 127.891     ┆ 132.577     │
+└─────────────────────┴────────────┴─────────────┴─────────────┘</code></pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <h2><span class="step-number">3</span> Understanding the Model</h2>
+                <p>Farseer's forecast includes several components:</p>
+
+                <ul>
+                    <li><strong>yhat:</strong> The predicted value</li>
+                    <li><strong>yhat_lower, yhat_upper:</strong> Uncertainty intervals (default 80%)</li>
+                    <li><strong>trend:</strong> The overall trend component</li>
+                    <li><strong>yearly:</strong> Yearly seasonal component (if enabled)</li>
+                    <li><strong>weekly:</strong> Weekly seasonal component (if enabled)</li>
+                    <li><strong>daily:</strong> Daily seasonal component (if enabled)</li>
+                </ul>
+
+                <div class="code-block">
+                    <pre><code># View all components
+print(forecast.select([
+    'ds', 'yhat', 'trend', 'yearly', 'weekly'
+]).tail())</code></pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <h2><span class="step-number">4</span> Customizing Your Model</h2>
+                <p>Farseer provides many options to customize your forecast:</p>
+
+                <h3>Seasonality Settings</h3>
+                <div class="code-block">
+                    <pre><code>m = Farseer(
+    yearly_seasonality=True,   # Enable yearly patterns
+    weekly_seasonality=True,   # Enable weekly patterns
+    daily_seasonality=False,   # Disable daily patterns
+    seasonality_mode='additive'  # or 'multiplicative'
+)</code></pre>
+                </div>
+
+                <h3>Growth Settings</h3>
+                <div class="code-block">
+                    <pre><code># Linear growth (default)
+m = Farseer(growth='linear')
+
+# Logistic growth with capacity
+df['cap'] = 200  # Maximum capacity
+m = Farseer(growth='logistic')
+m.fit(df)
+
+# Flat (no trend)
+m = Farseer(growth='flat')</code></pre>
+                </div>
+
+                <h3>Changepoint Detection</h3>
+                <div class="code-block">
+                    <pre><code>m = Farseer(
+    n_changepoints=25,           # Number of potential changepoints
+    changepoint_range=0.8,       # Use first 80% of data
+    changepoint_prior_scale=0.05 # Flexibility (higher = more flexible)
+)</code></pre>
+                </div>
+
+                <h3>Uncertainty Intervals</h3>
+                <div class="code-block">
+                    <pre><code>m = Farseer(interval_width=0.95)  # 95% confidence intervals
+m.fit(df)
+forecast = m.predict(future)</code></pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <h2><span class="step-number">5</span> Working with Real Data</h2>
+                <p>Here's a complete example with realistic data including trend and seasonality:</p>
+
+                <div class="code-block">
+                    <pre><code>import polars as pl
+import numpy as np
+from datetime import datetime
+from farseer import Farseer
+
+# Generate realistic data
+np.random.seed(42)
+n = 365 * 2  # 2 years of daily data
+dates = pl.date_range(datetime(2020, 1, 1), periods=n, interval='1d', eager=True)
+
+# Create components
+t = np.arange(n)
+trend = t * 0.5 + 100  # Linear growth
+yearly = 10 * np.sin(2 * np.pi * t / 365.25)  # Yearly seasonality
+weekly = 5 * np.sin(2 * np.pi * t / 7)  # Weekly seasonality
+noise = np.random.normal(0, 2, n)
+
+y = trend + yearly + weekly + noise
+
+df = pl.DataFrame({'ds': dates, 'y': y})
+
+# Split into train/test
+train_size = int(n * 0.8)
+train = df[:train_size]
+test = df[train_size:]
+
+# Fit model
+m = Farseer(
+    yearly_seasonality=True,
+    weekly_seasonality=True,
+    daily_seasonality=False
+)
+m.fit(train)
+
+# Forecast on test set
+forecast = m.predict(test)
+
+# Evaluate performance
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+
+mae = mean_absolute_error(test['y'], forecast['yhat'][:len(test)])
+rmse = np.sqrt(mean_squared_error(test['y'], forecast['yhat'][:len(test)]))
+
+print(f"Test MAE: {mae:.2f}")
+print(f"Test RMSE: {rmse:.2f}")</code></pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <h2><span class="step-number">6</span> Next Steps</h2>
+                <p>Now that you've got the basics, explore more advanced features:</p>
+
+                <ul>
+                    <li><a href="examples.html#weights">Weighted observations</a> - Give more importance to recent data</li>
+                    <li><a href="examples.html#regressors">Custom regressors</a> - Add additional variables</li>
+                    <li><a href="examples.html#changepoints">Manual changepoints</a> - Specify known trend changes</li>
+                    <li><a href="examples.html#holidays">Holiday effects</a> - Model special events</li>
+                    <li><a href="examples.html#performance">Performance optimization</a> - Maximize speed</li>
+                </ul>
+
+                <div style="margin-top: 2rem; padding: 1.5rem; background: var(--light-bg); border-left: 4px solid var(--primary-color); border-radius: 4px;">
+                    <h3 style="margin-top: 0;">💡 Pro Tip</h3>
+                    <p>Use Polars DataFrames instead of Pandas for 5-10x better performance. Farseer is optimized for Polars but still supports Pandas for backward compatibility.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Farseer</h4>
+                    <p>High-performance time series forecasting in Rust</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="quickstart.html">Quick Start</a></li>
+                        <li><a href="examples.html">Examples</a></li>
+                        <li><a href="https://github.com/ryanbieber/seer">GitHub</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024-2025 Farseer. Built with ❤️ and Rust.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

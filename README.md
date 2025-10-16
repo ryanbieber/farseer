@@ -10,7 +10,7 @@ A high-performance time series forecasting library built in Rust with Python bin
 [![Python](https://img.shields.io/badge/python-3.8+-blue)]()
 [![Rust](https://img.shields.io/badge/rust-2021-orange)]()
 
-[**Quick Start**](#quick-start) | [**Installation**](#installation) | [**Examples**](#examples) | [**API Reference**](#api-reference) | [**Documentation**](#documentation)
+[**Documentation**](https://ryanbieber.github.io/seer/) | [**Quick Start**](#quick-start) | [**Installation**](#installation) | [**Examples**](#examples) | [**API Reference**](#api-reference)
 
 </div>
 

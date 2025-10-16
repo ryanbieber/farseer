@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migrating from Prophet - Farseer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        .page-header {
+            background: var(--dark-bg);
+            color: var(--text-light);
+            padding: 4rem 0 3rem;
+        }
+        .page-content {
+            padding: 3rem 0;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .migration-section {
+            margin-bottom: 3rem;
+        }
+        .migration-section h2 {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+        .comparison-box {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 2px solid var(--border-color);
+        }
+        .comparison-box h4 {
+            margin-bottom: 1rem;
+            color: var(--text-dark);
+        }
+        .before {
+            border-color: #e53e3e;
+        }
+        .after {
+            border-color: var(--success-color);
+        }
+        @media (max-width: 768px) {
+            .comparison-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <a href="index.html" style="text-decoration: none; color: inherit; display: flex; align-items: center; gap: 0.5rem;">
+                    <span class="logo">⚡</span>
+                    <span class="brand-name">Farseer</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="index.html#features">Features</a></li>
+                <li><a href="quickstart.html">Quick Start</a></li>
+                <li><a href="examples.html">Examples</a></li>
+                <li><a href="index.html#docs">Docs</a></li>
+                <li><a href="https://github.com/ryanbieber/seer" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <header class="page-header">
+        <div class="container">
+            <h1>Migrating from Prophet</h1>
+            <p>Switch to Farseer with minimal code changes</p>
+        </div>
+    </header>
+
+    <section class="page-content">
+        <div class="container">
+            <div class="migration-section">
+                <h2>Why Migrate?</h2>
+                <p>Farseer offers significant advantages over Prophet while maintaining API compatibility:</p>
+                <ul>
+                    <li><strong>5-10x faster</strong> - Rust-powered performance with automatic multithreading</li>
+                    <li><strong>Weighted observations</strong> - Native support for data quality and recency weighting</li>
+                    <li><strong>Polars support</strong> - Modern DataFrame library for even better performance</li>
+                    <li><strong>Simpler deployment</strong> - Fewer dependencies, single binary distribution</li>
+                    <li><strong>Same API</strong> - Nearly identical interface, minimal learning curve</li>
+                </ul>
+            </div>
+
+            <div class="migration-section">
+                <h2>Quick Migration Guide</h2>
+
+                <div class="comparison-grid">
+                    <div class="comparison-box before">
+                        <h4>❌ Before (Prophet)</h4>
+                        <div class="code-block">
+                            <pre><code>from prophet import Prophet
+import pandas as pd
+
+df = pd.DataFrame({
+    'ds': pd.date_range('2020-01-01', periods=100),
+    'y': range(100)
+})
+
+m = Prophet()
+m.fit(df)
+future = m.make_future_dataframe(periods=30)
+forecast = m.predict(future)</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="comparison-box after">
+                        <h4>✅ After (Farseer)</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+import pandas as pd
+
+df = pd.DataFrame({
+    'ds': pd.date_range('2020-01-01', periods=100),
+    'y': range(100)
+})
+
+m = Farseer()  # Just change the class name!
+m.fit(df)
+future = m.make_future_dataframe(periods=30)
+forecast = m.predict(future)</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <p>That's it! In most cases, you only need to change <code>Prophet</code> to <code>Farseer</code>.</p>
+            </div>
+
+            <div class="migration-section">
+                <h2>API Compatibility</h2>
+                <p>Farseer maintains compatibility with Prophet's core API:</p>
+
+                <h3>✅ Fully Compatible</h3>
+                <ul>
+                    <li><code>fit(df)</code> - Train the model</li>
+                    <li><code>predict(df)</code> - Make predictions</li>
+                    <li><code>make_future_dataframe(periods)</code> - Generate future dates</li>
+                    <li><code>add_regressor(name, ...)</code> - Add custom regressors</li>
+                    <li><code>add_seasonality(name, period, fourier_order)</code> - Add custom seasonality</li>
+                    <li><code>add_country_holidays(country)</code> - Add holiday effects</li>
+                    <li>Growth modes: <code>linear</code>, <code>logistic</code>, <code>flat</code></li>
+                    <li>Seasonality modes: <code>additive</code>, <code>multiplicative</code></li>
+                    <li>Changepoint detection and configuration</li>
+                </ul>
+
+                <h3>⚡ Enhanced Features</h3>
+                <ul>
+                    <li><strong>Weighted observations</strong> - Add <code>weight</code> column to your DataFrame</li>
+                    <li><strong>Polars DataFrames</strong> - Use Polars for 5-10x better performance</li>
+                    <li><strong>Automatic multithreading</strong> - No configuration needed</li>
+                </ul>
+            </div>
+
+            <div class="migration-section">
+                <h2>Common Migration Scenarios</h2>
+
+                <h3>Scenario 1: Basic Time Series</h3>
+                <div class="comparison-grid">
+                    <div class="comparison-box before">
+                        <h4>Prophet</h4>
+                        <div class="code-block">
+                            <pre><code>from prophet import Prophet
+
+m = Prophet(
+    yearly_seasonality=True,
+    weekly_seasonality=False,
+    daily_seasonality=False
+)
+m.fit(df)
+forecast = m.predict(future)</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="comparison-box after">
+                        <h4>Farseer</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+m = Farseer(
+    yearly_seasonality=True,
+    weekly_seasonality=False,
+    daily_seasonality=False
+)
+m.fit(df)
+forecast = m.predict(future)</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <h3>Scenario 2: With Regressors</h3>
+                <div class="comparison-grid">
+                    <div class="comparison-box before">
+                        <h4>Prophet</h4>
+                        <div class="code-block">
+                            <pre><code>from prophet import Prophet
+
+m = Prophet()
+m.add_regressor('temperature')
+m.add_regressor('is_weekend')
+m.fit(train_df)
+forecast = m.predict(test_df)</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="comparison-box after">
+                        <h4>Farseer</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+m = Farseer()
+m.add_regressor('temperature')
+m.add_regressor('is_weekend')
+m.fit(train_df)
+forecast = m.predict(test_df)</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <h3>Scenario 3: With Holidays</h3>
+                <div class="comparison-grid">
+                    <div class="comparison-box before">
+                        <h4>Prophet</h4>
+                        <div class="code-block">
+                            <pre><code>from prophet import Prophet
+
+m = Prophet()
+m.add_country_holidays(country_name='US')
+m.fit(df)
+forecast = m.predict(future)</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="comparison-box after">
+                        <h4>Farseer</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+m = Farseer()
+m.add_country_holidays(country_name='US')
+m.fit(df)
+forecast = m.predict(future)</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <h3>Scenario 4: Logistic Growth</h3>
+                <div class="comparison-grid">
+                    <div class="comparison-box before">
+                        <h4>Prophet</h4>
+                        <div class="code-block">
+                            <pre><code>from prophet import Prophet
+
+df['cap'] = 200  # Carrying capacity
+m = Prophet(growth='logistic')
+m.fit(df)
+
+future = m.make_future_dataframe(periods=30)
+future['cap'] = 200
+forecast = m.predict(future)</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="comparison-box after">
+                        <h4>Farseer</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+df['cap'] = 200  # Carrying capacity
+m = Farseer(growth='logistic')
+m.fit(df)
+
+future = m.make_future_dataframe(periods=30)
+future['cap'] = 200
+forecast = m.predict(future)</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="migration-section">
+                <h2>Performance Boost with Polars</h2>
+                <p>For even better performance, migrate to Polars DataFrames:</p>
+
+                <div class="comparison-grid">
+                    <div class="comparison-box before">
+                        <h4>With Pandas</h4>
+                        <div class="code-block">
+                            <pre><code>import pandas as pd
+from farseer import Farseer
+
+df = pd.DataFrame({
+    'ds': pd.date_range('2020-01-01', periods=1000),
+    'y': range(1000)
+})
+
+m = Farseer()
+m.fit(df)  # Works but slower</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="comparison-box after">
+                        <h4>With Polars (5-10x faster!)</h4>
+                        <div class="code-block">
+                            <pre><code>import polars as pl
+from farseer import Farseer
+from datetime import datetime
+
+df = pl.DataFrame({
+    'ds': pl.date_range(datetime(2020, 1, 1),
+                        periods=1000, interval='1d', eager=True),
+    'y': range(1000)
+})
+
+m = Farseer()
+m.fit(df)  # Much faster! ⚡</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="migration-section">
+                <h2>New Features in Farseer</h2>
+
+                <h3>Weighted Observations</h3>
+                <p>This feature is unique to Farseer and not available in Prophet:</p>
+                <div class="code-block">
+                    <pre><code>import polars as pl
+from farseer import Farseer
+
+# Add weights to emphasize recent data
+df = pl.DataFrame({
+    'ds': dates,
+    'y': values,
+    'weight': [2.0 if i < 50 else 1.0 for i in range(100)]
+})
+
+# Weights are automatically detected!
+m = Farseer()
+m.fit(df)</code></pre>
+                </div>
+
+                <h3>Automatic Multithreading</h3>
+                <p>No configuration needed - Farseer automatically uses all available CPU cores:</p>
+                <div class="code-block">
+                    <pre><code># Prophet: single-threaded by default
+from prophet import Prophet
+m = Prophet()
+m.fit(large_df)  # Slower
+
+# Farseer: automatic multithreading
+from farseer import Farseer
+m = Farseer()
+m.fit(large_df)  # Much faster with no extra code!</code></pre>
+                </div>
+            </div>
+
+            <div class="migration-section">
+                <h2>Troubleshooting</h2>
+
+                <h3>Import Errors</h3>
+                <div class="code-block">
+                    <pre><code># If you get import errors, ensure Farseer is installed
+pip install farseer
+
+# For development version
+git clone https://github.com/ryanbieber/seer
+cd seer
+export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1  # Python 3.13+
+maturin develop --release</code></pre>
+                </div>
+
+                <h3>Minor Differences</h3>
+                <p>While Farseer aims for full Prophet compatibility, there may be minor numerical differences due to:</p>
+                <ul>
+                    <li>Different optimization algorithms (both use L-BFGS but with different implementations)</li>
+                    <li>Floating point precision differences between Rust and Python</li>
+                    <li>Random number generation in uncertainty intervals</li>
+                </ul>
+                <p>These differences are typically negligible and don't affect forecast quality.</p>
+            </div>
+
+            <div class="migration-section">
+                <h2>Need Help?</h2>
+                <p>If you encounter issues migrating from Prophet to Farseer:</p>
+                <ul>
+                    <li><a href="https://github.com/ryanbieber/seer/issues">Report an issue on GitHub</a></li>
+                    <li><a href="https://github.com/ryanbieber/seer/discussions">Join the discussion</a></li>
+                    <li><a href="examples.html">Check out more examples</a></li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Farseer</h4>
+                    <p>High-performance time series forecasting in Rust</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="quickstart.html">Quick Start</a></li>
+                        <li><a href="examples.html">Examples</a></li>
+                        <li><a href="migration.html">Migration Guide</a></li>
+                        <li><a href="https://github.com/ryanbieber/seer">GitHub</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024-2025 Farseer. Built with ❤️ and Rust.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
