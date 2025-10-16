@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 pub mod core;
-pub use core::{ForecastResult, Farseer as CoreFarseer, TimeSeriesData, TrendType};
+pub use core::{Farseer as CoreFarseer, ForecastResult, TimeSeriesData, TrendType};
 
 pub type Result<T> = std::result::Result<T, FarseerError>;
 
@@ -293,10 +293,7 @@ impl Farseer {
         dict.set_item("yhat_upper", forecast.yhat_upper.to_pyarray(py))?;
         dict.set_item("trend_lower", forecast.trend_lower.to_pyarray(py))?;
         dict.set_item("trend_upper", forecast.trend_upper.to_pyarray(py))?;
-        dict.set_item(
-            "additive_terms",
-            forecast.additive_terms.to_pyarray(py),
-        )?;
+        dict.set_item("additive_terms", forecast.additive_terms.to_pyarray(py))?;
         dict.set_item(
             "additive_terms_lower",
             forecast.additive_terms_lower.to_pyarray(py),

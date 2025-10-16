@@ -182,8 +182,9 @@ impl CmdStanOptimizer {
             .map_err(crate::FarseerError::Io)?;
 
         // Write data in JSON format (CmdStan's preferred input format)
-        let data_content = serde_json::to_string_pretty(data)
-            .map_err(|e| crate::FarseerError::StanError(format!("Failed to serialize data: {}", e)))?;
+        let data_content = serde_json::to_string_pretty(data).map_err(|e| {
+            crate::FarseerError::StanError(format!("Failed to serialize data: {}", e))
+        })?;
 
         data_file
             .write_all(data_content.as_bytes())
@@ -191,8 +192,9 @@ impl CmdStanOptimizer {
         data_file.flush().map_err(crate::FarseerError::Io)?;
 
         // Write init in JSON format
-        let init_content = serde_json::to_string_pretty(init)
-            .map_err(|e| crate::FarseerError::StanError(format!("Failed to serialize init: {}", e)))?;
+        let init_content = serde_json::to_string_pretty(init).map_err(|e| {
+            crate::FarseerError::StanError(format!("Failed to serialize init: {}", e))
+        })?;
 
         init_file
             .write_all(init_content.as_bytes())

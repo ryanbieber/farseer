@@ -1487,9 +1487,9 @@ impl Farseer {
         })?;
 
         // Parse trend type
-        let trend_str = params["trend"]
-            .as_str()
-            .ok_or_else(|| crate::FarseerError::DataValidation("Missing trend field".to_string()))?;
+        let trend_str = params["trend"].as_str().ok_or_else(|| {
+            crate::FarseerError::DataValidation("Missing trend field".to_string())
+        })?;
         let trend = match trend_str {
             "Linear" => TrendType::Linear,
             "Logistic" => TrendType::Logistic,
