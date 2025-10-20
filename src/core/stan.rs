@@ -184,15 +184,21 @@ impl StanModel {
         let k = x.first().map(|v| v.len()).unwrap_or(0);
         let s = t_change.len();
 
-        // Calculate grainsize
-        let num_threads = std::thread::available_parallelism()
-            .map(|n| n.get())
+        // Determine thread count (allow SEER_NUM_THREADS override)
+        let num_threads = std::env::var("SEER_NUM_THREADS")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .filter(|v| *v > 0)
+            .or_else(|| std::thread::available_parallelism().map(|n| n.get()).ok())
             .unwrap_or(4);
+
+        // Calculate grainsize (avoid zero and overly small slices)
         let grainsize = {
             let min_grainsize = 1;
             let max_grainsize = 1000;
-            let calculated = n / (num_threads * 4).max(1);
-            calculated.clamp(min_grainsize, max_grainsize).max(1)
+            let denominator = (num_threads * 4).max(1);
+            let calculated = if n == 0 { 1 } else { (n / denominator).max(1) };
+            calculated.clamp(min_grainsize, max_grainsize)
         };
 
         // Use provided weights or default to equal weights
@@ -215,6 +221,7 @@ impl StanModel {
             "s_m": s_m,
             "weights": weights_vec,
             "grainsize": grainsize,
+            "num_threads": num_threads,
         });
 
         // Initialize parameters using Prophet's approach
@@ -255,7 +262,7 @@ impl StanModel {
         let optimizer = CmdStanOptimizer::with_model_path(&cmdstan_path);
 
         // Run optimization
-        let result = optimizer.optimize(&data, &init)?;
+        let result = optimizer.optimize_with_thread_count(&data, &init, num_threads)?;
 
         Ok(StanOptimizationResult {
             k: result.k,

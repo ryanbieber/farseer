@@ -208,6 +208,46 @@ impl SeasonalityConfig {
     }
 }
 
+fn adaptive_changepoint_settings(
+    history_len: usize,
+    configured_n: usize,
+    configured_tau: f64,
+) -> (usize, f64) {
+    let tuned_n = if history_len >= 75_000 {
+        if configured_n == 0 {
+            0
+        } else {
+            configured_n.min(10)
+        }
+    } else if history_len >= 25_000 {
+        if configured_n == 0 {
+            0
+        } else {
+            configured_n.min(15)
+        }
+    } else if history_len >= 10_000 {
+        if configured_n == 0 {
+            0
+        } else {
+            configured_n.min(20)
+        }
+    } else {
+        configured_n
+    };
+
+    let tuned_tau = if history_len >= 75_000 {
+        configured_tau.min(0.02)
+    } else if history_len >= 25_000 {
+        configured_tau.min(0.03)
+    } else if history_len >= 10_000 {
+        configured_tau.min(0.04)
+    } else {
+        configured_tau
+    };
+
+    (tuned_n, tuned_tau)
+}
+
 impl Farseer {
     pub fn new() -> Self {
         Self {
@@ -350,6 +390,18 @@ impl Farseer {
                 })
             })
             .collect::<std::result::Result<_, _>>()?;
+
+        let history_len = ts.len();
+
+        if !self.specified_changepoints {
+            let (tuned_n, tuned_tau) = adaptive_changepoint_settings(
+                history_len,
+                self.n_changepoints,
+                self.changepoint_prior_scale,
+            );
+            self.n_changepoints = tuned_n;
+            self.changepoint_prior_scale = tuned_tau;
+        }
 
         // Time scaling t in [0,1]
         let (t_hist, t_scale, t0) = time_scale(&ts);
@@ -1657,5 +1709,38 @@ impl Farseer {
 impl Default for Farseer {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::adaptive_changepoint_settings;
+
+    #[test]
+    fn adaptive_settings_keep_defaults_for_small_series() {
+        let (n, tau) = adaptive_changepoint_settings(5_000, 25, 0.05);
+        assert_eq!(n, 25);
+        assert_eq!(tau, 0.05);
+    }
+
+    #[test]
+    fn adaptive_settings_tighten_for_medium_series() {
+        let (n, tau) = adaptive_changepoint_settings(30_000, 25, 0.05);
+        assert_eq!(n, 15);
+        assert!((tau - 0.03).abs() < 1e-9);
+    }
+
+    #[test]
+    fn adaptive_settings_tighten_for_large_series() {
+        let (n, tau) = adaptive_changepoint_settings(120_000, 25, 0.05);
+        assert_eq!(n, 10);
+        assert!((tau - 0.02).abs() < 1e-9);
+    }
+
+    #[test]
+    fn adaptive_settings_respect_zero_changepoints() {
+        let (n, tau) = adaptive_changepoint_settings(120_000, 0, 0.01);
+        assert_eq!(n, 0);
+        assert!((tau - 0.01).abs() < 1e-9);
     }
 }

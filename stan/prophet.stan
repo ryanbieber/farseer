@@ -83,24 +83,20 @@ functions {
     return rep_vector(m, T);
   }
 
-  // Partial sum function for reduce_sum
-  real partial_sum(
+  // Partial sum function for reduce_sum (uses precomputed mean vector)
+  real weighted_partial_sum(
     array[] int slice_n,
     int start,
     int end,
     vector y,
-    matrix X_sa,
-    matrix X_sm,
-    vector trend,
-    vector beta,
+    vector mu,
     real sigma_obs,
     vector weights
   ) {
     real lp = 0;
     for (i in start:end) {
       int n = slice_n[i - start + 1];
-      real mu = dot_product(X_sa[n], beta) + trend[n] * (1 + dot_product(X_sm[n], beta));
-      lp += weights[n] * normal_lpdf(y[n] | mu, sigma_obs);
+      lp += weights[n] * normal_lpdf(y[n] | mu[n], sigma_obs);
     }
     return lp;
   }
@@ -122,6 +118,7 @@ data {
   vector[K] s_m;        // Indicator of multiplicative features
   vector<lower=0>[T] weights;  // Observation weights
   int<lower=1> grainsize;  // Grainsize for reduce_sum (e.g., 1)
+  int<lower=0> num_threads; // Number of threads requested
 }
 
 transformed data {
@@ -129,11 +126,13 @@ transformed data {
   matrix[T, K] X_sa = X .* rep_matrix(s_a', T);
   matrix[T, K] X_sm = X .* rep_matrix(s_m', T);
   array[T] int n_seq;
-
+  int use_reduce_sum;
   // Create sequence of indices for reduce_sum
   for (n in 1:T) {
     n_seq[n] = n;
   }
+
+  use_reduce_sum = (num_threads > 1) && (T >= grainsize * 2);
 }
 
 parameters {
@@ -146,6 +145,9 @@ parameters {
 
 transformed parameters {
   vector[T] trend;
+  vector[T] additive_component;
+  vector[T] multiplicative_component;
+  vector[T] mu;
   if (trend_indicator == 0) {
     trend = linear_trend(k, m, delta, t, A, t_change);
   } else if (trend_indicator == 1) {
@@ -153,6 +155,15 @@ transformed parameters {
   } else if (trend_indicator == 2) {
     trend = flat_trend(m, T);
   }
+
+  if (K > 0) {
+    additive_component = X_sa * beta;
+    multiplicative_component = X_sm * beta;
+  } else {
+    additive_component = rep_vector(0, T);
+    multiplicative_component = rep_vector(0, T);
+  }
+  mu = additive_component + trend .* (1 + multiplicative_component);
 }
 
 model {
@@ -170,17 +181,19 @@ model {
     }
   }
 
-  // Likelihood with reduce_sum for multithreading
-  target += reduce_sum(
-    partial_sum,
-    n_seq,
-    grainsize,
-    y,
-    X_sa,
-    X_sm,
-    trend,
-    beta,
-    sigma_obs,
-    weights
-  );
+  if (use_reduce_sum) {
+    target += reduce_sum(
+      weighted_partial_sum,
+      n_seq,
+      grainsize,
+      y,
+      mu,
+      sigma_obs,
+      weights
+    );
+  } else {
+    for (n in 1:T) {
+      target += weights[n] * normal_lpdf(y[n] | mu[n], sigma_obs);
+    }
+  }
 }

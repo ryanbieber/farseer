@@ -149,6 +149,25 @@ impl CmdStanOptimizer {
         data: &serde_json::Value,
         init: &serde_json::Value,
     ) -> Result<OptimizationResult> {
+        self.optimize_internal(data, init, None)
+    }
+
+    /// Optimize with an explicit thread count override (used by the Stan wrapper)
+    pub fn optimize_with_thread_count(
+        &self,
+        data: &serde_json::Value,
+        init: &serde_json::Value,
+        num_threads: usize,
+    ) -> Result<OptimizationResult> {
+        self.optimize_internal(data, init, Some(num_threads))
+    }
+
+    fn optimize_internal(
+        &self,
+        data: &serde_json::Value,
+        init: &serde_json::Value,
+        num_threads_override: Option<usize>,
+    ) -> Result<OptimizationResult> {
         use std::io::Write;
         use std::process::Command;
 
@@ -215,13 +234,17 @@ impl CmdStanOptimizer {
         };
 
         // Determine number of threads to use
-        let num_threads = std::thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(1);
+        let num_threads = num_threads_override.unwrap_or_else(|| {
+            std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(1)
+        });
+        let num_threads = num_threads.max(1);
 
         // Run CmdStan optimization
         let output = Command::new(&self.model_path)
             .env("LD_LIBRARY_PATH", new_ld_library_path)
+            .env("STAN_NUM_THREADS", num_threads.to_string())
             .arg("optimize")
             .arg("algorithm=lbfgs")
             .arg("data")
