@@ -1,5 +1,8 @@
 // src/lib.rs - Full structure with Python bindings
 
+// Enable nightly autodiff feature when nightly-ad is enabled
+#![cfg_attr(feature = "nightly-ad", feature(autodiff))]
+
 // Allow clippy::useless_conversion for PyO3-related false positives
 #![allow(clippy::useless_conversion)]
 

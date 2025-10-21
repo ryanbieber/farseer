@@ -1,6 +1,7 @@
 use crate::core::data::{ForecastResult, TimeSeriesData};
+use crate::core::prophet_autodiff::ProphetModel as AutodiffProphetModel;
+use crate::core::prophet_optimizer::{initialize_params, optimize_prophet, OptimizationConfig};
 use crate::core::seasonality::{fourier_series, holiday_features, hstack};
-use crate::core::stan::StanModel;
 use crate::core::trend::{
     changepoint_matrix, flat_trend, future_dates, parse_ds, piecewise_linear, piecewise_logistic,
     select_changepoints, time_scale,
@@ -406,19 +407,11 @@ impl Farseer {
         // Time scaling t in [0,1]
         let (t_hist, t_scale, t0) = time_scale(&ts);
 
-        // Auto-detect seasonality based on data span (Prophet compatibility)
-        // If user set seasonality to 'auto' (true), we auto-detect
-        // Otherwise we respect their explicit choice
-        let data_span_days = (ts[ts.len() - 1] - ts[0]).num_days() as f64;
-
-        let use_yearly = if self.yearly_seasonality {
-            // Only use yearly if we have at least 2 years of data
-            data_span_days >= 730.0
-        } else {
-            false
-        };
-
-        let use_weekly = self.weekly_seasonality; // Weekly is usually always on
+        // Respect user's explicit seasonality choices
+        // Note: Prophet has auto-detection logic, but when users explicitly enable/disable
+        // seasonality via the API, we should respect their choice
+        let use_yearly = self.yearly_seasonality;
+        let use_weekly = self.weekly_seasonality;
         let use_daily = self.daily_seasonality;
 
         // Changepoints (locations in t units)
@@ -674,6 +667,7 @@ impl Farseer {
         };
 
         // Determine trend indicator for Stan
+        // Stan model expects: 0=linear, 1=logistic, 2=flat
         let trend_indicator = match self.trend {
             TrendType::Linear => 0,
             TrendType::Logistic => 1,
@@ -735,9 +729,6 @@ impl Farseer {
         // Store regressor blocks for prediction
         self.regressor_blocks = regressor_blocks;
 
-        // Use Stan for parameter estimation
-        let stan_model = StanModel::new()?;
-
         // Scale y (Prophet uses absmax scaling by default)
         // y_scale = max(abs(y)) to keep predictions interpretable
         let y_scale = data
@@ -780,28 +771,101 @@ impl Farseer {
             sigmas[block.start..block.end].fill(config.prior_scale);
         }
 
-        // Use CmdStan optimizer (110x faster than BridgeStan)
-        // Set LD_LIBRARY_PATH=./stan to find TBB libraries
-        let result = stan_model.optimize_with_cmdstan(
-            &t_hist,
-            &y_scaled,   // Use scaled y
-            &cap_scaled, // Use scaled cap
-            &x_matrix,
-            &sigmas,
-            self.changepoint_prior_scale,
+        // Convert x_matrix to ndarray Array2
+        let n_rows = x_matrix.len();
+        let n_cols = if n_rows > 0 { x_matrix[0].len() } else { 0 };
+        
+        // Debug: Print X matrix statistics
+        if n_cols > 0 && n_rows > 0 {
+            let mut x_min = f64::INFINITY;
+            let mut x_max = f64::NEG_INFINITY;
+            for row in &x_matrix {
+                for &val in row {
+                    x_min = x_min.min(val);
+                    x_max = x_max.max(val);
+                }
+            }
+            println!("DEBUG: X matrix shape: ({}, {}), range: [{:.4}, {:.4}]", n_rows, n_cols, x_min, x_max);
+            
+            // Print first few rows to see actual values
+            println!("DEBUG: First 3 rows of X matrix:");
+            for (i, row) in x_matrix.iter().take(3).enumerate() {
+                let row_str: Vec<String> = row.iter().take(10).map(|v| format!("{:.4}", v)).collect();
+                println!("  Row {}: [{}{}]", i, row_str.join(", "), if row.len() > 10 { ", ..." } else { "" });
+            }
+            
+            // Check for any zero columns
+            let mut zero_cols = Vec::new();
+            for col_idx in 0..n_cols {
+                let mut all_zero = true;
+                for row in &x_matrix {
+                    if row[col_idx].abs() > 1e-10 {
+                        all_zero = false;
+                        break;
+                    }
+                }
+                if all_zero {
+                    zero_cols.push(col_idx);
+                }
+            }
+            if !zero_cols.is_empty() {
+                println!("WARNING: Found {} zero columns: {:?}", zero_cols.len(), zero_cols);
+            }
+        }
+        
+        let mut x_flat = Vec::with_capacity(n_rows * n_cols);
+        for row in &x_matrix {
+            x_flat.extend(row);
+        }
+        let x_array = ndarray::Array2::from_shape_vec((n_rows, n_cols), x_flat)
+            .map_err(|e| crate::FarseerError::DataValidation(format!("Failed to create feature matrix: {}", e)))?;
+
+        // Use pure Rust autodiff + argmin L-BFGS optimizer
+        let n_obs = t_hist.len();
+        let autodiff_model = AutodiffProphetModel {
+            n: n_obs,
+            k: total_features,
+            s: t_change.len(),
+            t: ndarray::Array1::from_vec(t_hist),
+            y: ndarray::Array1::from_vec(y_scaled.clone()),
+            cap: ndarray::Array1::from_vec(cap_scaled),
+            x: x_array,
+            t_change: ndarray::Array1::from_vec(t_change.clone()),
+            sigmas: ndarray::Array1::from_vec(sigmas),
+            tau: self.changepoint_prior_scale,
+            s_a: ndarray::Array1::from_vec(s_a),
+            s_m: ndarray::Array1::from_vec(s_m),
+            weights: ndarray::Array1::from_vec(
+                data.weights.as_ref().map(|w| w.clone()).unwrap_or_else(|| vec![1.0; n_obs])
+            ),
             trend_indicator,
-            &s_a,
-            &s_m,
-            &t_change,
-            data.weights.as_deref(), // Pass weights
-        )?;
+        };
+
+        let y_mean = y_scaled.iter().sum::<f64>() / y_scaled.len() as f64;
+        let y_variance = y_scaled.iter().map(|&y| (y - y_mean).powi(2)).sum::<f64>() / y_scaled.len() as f64;
+        let y_std = y_variance.sqrt();
+        
+        println!("DEBUG: About to initialize parameters");
+        let init_params = initialize_params(&autodiff_model, y_mean, y_std);
+        println!("DEBUG: Initialized {} parameters", init_params.len());
+        
+        let config = OptimizationConfig {
+            max_iters: 1_000_000,  // Very high to ensure it doesn't stop due to iteration limit
+            tolerance: 1e-10,
+            history_size: 10,  // Increase history size for better approximation
+        };
+        
+        println!("DEBUG: About to call optimize_prophet");
+        let result = optimize_prophet(autodiff_model, init_params, config)
+            .map_err(|e| crate::FarseerError::Prediction(format!("Optimization failed: {}", e)))?;
+        println!("DEBUG: optimize_prophet returned");
 
         // Parameters are in scaled space - we'll unscale during prediction
-        let k = result.k;
-        let m = result.m;
-        let delta = result.delta;
-        let beta = result.beta;
-        let sigma_obs = result.sigma_obs;
+        let k = result.params.k;
+        let m = result.params.m;
+        let delta = result.params.delta.to_vec();
+        let beta = result.params.beta.to_vec();
+        let sigma_obs = result.params.sigma_obs;
 
         // Save state
         self.history = Some(data.clone());

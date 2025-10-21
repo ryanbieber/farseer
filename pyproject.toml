@@ -1,7 +1,6 @@
 [build-system]
 requires = [
     "maturin>=1.0,<2.0",
-    "cmdstanpy>=1.0.4",
 ]
 build-backend = "maturin"
 
@@ -34,7 +33,6 @@ classifiers = [
     "Operating System :: MacOS",
 ]
 dependencies = [
-    "cmdstanpy>=1.0.4",
     "numpy>=1.15.4",
     "matplotlib>=2.0.0",
     "pandas>=1.0.4",

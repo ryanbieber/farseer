@@ -24,10 +24,17 @@ thiserror = "1.0"
 anyhow = "1.0"
 chrono = "0.4"
 tempfile = "3.0"
+rand = "0.8"
 
-# Optimization
+# Optimization - Pure Rust autodiff for gradients + argmin L-BFGS optimizer
 argmin = "0.10"
-argmin-math = { version = "0.4", features = ["vec"] }
+argmin-math = { version = "0.4", features = ["ndarray_v0_15-nolinalg"] }
+
+# Autodiff for pure Rust gradients
+autodiff = "0.7"
+
+# Parallel computation for gradient evaluation
+rayon = "1.10"
 
 # Python bindings
 pyo3 = { version = "0.26", features = ["extension-module"] }
@@ -41,10 +48,23 @@ name = "farseer"
 approx = "0.5"
 criterion = "0.5"
 
+[features]
+default = ["nightly-ad"]
+# Nightly Rust features for reverse-mode automatic differentiation
+nightly-ad = []
+# Legacy feature flags kept for compatibility but no longer used
+stan = []
+autodiff-backend = []
+
 # Integration tests
 [[test]]
 name = "integration_tests"
 path = "rust_tests/integration_tests.rs"
+
+# Benchmarks
+[[bench]]
+name = "autodiff_vs_stan"
+harness = false
 
 # Maturin will use this for building Python wheels
 [build-dependencies]

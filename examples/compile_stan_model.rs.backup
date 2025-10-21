@@ -1,0 +1,75 @@
+/// Example program to compile the prophet.stan model using BridgeStan
+/// 
+/// Run with: cargo run --example compile_stan_model
+
+use std::path::{Path, PathBuf};
+
+fn main() {
+    println!("=== BridgeStan Model Compilation ===\n");
+
+    // Get the path to the Stan model
+    let stan_file = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("stan")
+        .join("prophet.stan");
+    
+    println!("Stan file: {}", stan_file.display());
+
+    if !stan_file.exists() {
+        eprintln!("Error: Stan file not found at {}", stan_file.display());
+        std::process::exit(1);
+    }
+
+    // Download BridgeStan source if needed (enabled by download-bridgestan-src feature)
+    println!("\nDownloading BridgeStan source...");
+    let bs_path = match bridgestan::download_bridgestan_src() {
+        Ok(path) => {
+            println!("BridgeStan source downloaded to: {}", path.display());
+            path
+        }
+        Err(e) => {
+            eprintln!("Error downloading BridgeStan: {:?}", e);
+            eprintln!("Trying to use local BridgeStan installation...");
+            PathBuf::from("..")
+        }
+    };
+
+    // Compile the model
+    println!("\nCompiling Stan model (this may take a few minutes)...");
+    match bridgestan::compile_model(&bs_path, &stan_file, &[], &[]) {
+        Ok(model_path) => {
+            println!("\n✓ Successfully compiled!");
+            println!("  Model library: {}", model_path.display());
+            
+            // Copy to expected location if different
+            let target_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("stan");
+            let lib_name = if cfg!(target_os = "windows") {
+                "prophet_model.dll"
+            } else if cfg!(target_os = "macos") {
+                "prophet_model.dylib"
+            } else {
+                "prophet_model.so"
+            };
+            let target_path = target_dir.join(lib_name);
+            
+            if model_path != target_path {
+                println!("\nCopying to standard location: {}", target_path.display());
+                if let Err(e) = std::fs::copy(&model_path, &target_path) {
+                    eprintln!("Warning: Could not copy to {}: {}", target_path.display(), e);
+                } else {
+                    println!("✓ Copied successfully!");
+                }
+            }
+            
+            println!("\nYou can now run Farseer with BridgeStan optimization!");
+            println!("The model will be automatically detected at: {}", target_path.display());
+        }
+        Err(e) => {
+            eprintln!("\n✗ Compilation failed: {:?}", e);
+            eprintln!("\nMake sure you have a C++ compiler installed:");
+            eprintln!("  - Ubuntu/Debian: sudo apt-get install g++ make");
+            eprintln!("  - macOS: xcode-select --install");
+            eprintln!("  - Windows: Install Visual Studio Build Tools");
+            std::process::exit(1);
+        }
+    }
+}
