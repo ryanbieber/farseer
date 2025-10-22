@@ -19,9 +19,11 @@ repos:
         name: Ruff linter
         description: Run ruff linter
         args: [--fix]
+        exclude: '\.ipynb$'
       - id: ruff-format
         name: Ruff formatter
         description: Run ruff formatter
+        exclude: '\.ipynb$'
 
   # Check for common issues
   - repo: https://github.com/pre-commit/pre-commit-hooks

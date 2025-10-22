@@ -8,7 +8,7 @@ use crate::core::trend::{
 use crate::Result;
 use chrono::NaiveDateTime;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TrendType {
     Linear,
     Logistic,
@@ -178,6 +178,7 @@ pub struct SeasonalityConfig {
     pub fourier_order: usize,
     pub prior_scale: f64,
     pub mode: SeasonalityMode,
+    pub condition_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -194,11 +195,17 @@ impl SeasonalityConfig {
             fourier_order,
             prior_scale: 10.0,
             mode: SeasonalityMode::Additive,
+            condition_name: None,
         }
     }
 
     pub fn with_prior_scale(mut self, scale: f64) -> Self {
         self.prior_scale = scale;
+        self
+    }
+
+    pub fn with_condition(mut self, condition_name: String) -> Self {
+        self.condition_name = Some(condition_name);
         self
     }
 
@@ -506,7 +513,28 @@ impl Farseer {
         let mut col_start = 0usize;
 
         for config in &all_seasonalities {
-            let fb = fourier_series(&t_days, config.period, config.fourier_order);
+            let mut fb = fourier_series(&t_days, config.period, config.fourier_order);
+
+            // Apply condition if specified
+            if let Some(ref condition_name) = config.condition_name {
+                if let Some(condition_values) = data.conditions.get(condition_name) {
+                    // Mask the features where condition is false
+                    for (i, &is_active) in condition_values.iter().enumerate() {
+                        if !is_active && i < fb.len() {
+                            // Set all features to 0 when condition is false
+                            for j in 0..fb[i].len() {
+                                fb[i][j] = 0.0;
+                            }
+                        }
+                    }
+                } else {
+                    return Err(crate::FarseerError::DataValidation(format!(
+                        "Condition '{}' specified for seasonality '{}' but not found in data",
+                        condition_name, config.name
+                    )));
+                }
+            }
+
             let cols = if fb.is_empty() { 0 } else { fb[0].len() };
             if cols > 0 {
                 match config.mode {
@@ -738,19 +766,59 @@ impl Farseer {
         // Use Stan for parameter estimation
         let stan_model = StanModel::new()?;
 
+        // Handle floor for logistic growth
+        // When floor is present, we scale y and cap relative to floor: (value - floor) / y_scale
+        let floor_vec = if let Some(ref floor_data) = data.floor {
+            // Validate floor < cap for logistic growth
+            if self.trend == TrendType::Logistic {
+                for (i, (&floor_val, &cap_val)) in floor_data.iter().zip(cap.iter()).enumerate() {
+                    if cap_val <= floor_val {
+                        return Err(crate::FarseerError::DataValidation(format!(
+                            "cap must be greater than floor at index {} (cap={}, floor={})",
+                            i, cap_val, floor_val
+                        )));
+                    }
+                }
+            }
+            self.logistic_floor = true;
+            floor_data.clone()
+        } else {
+            self.logistic_floor = false;
+            vec![0.0; data.y.len()]
+        };
+
         // Scale y (Prophet uses absmax scaling by default)
-        // y_scale = max(abs(y)) to keep predictions interpretable
-        let y_scale = data
+        // When floor is present: y_scale = max(abs(y - floor))
+        // Otherwise: y_scale = max(abs(y))
+        let y_scale = if self.logistic_floor {
+            data.y
+                .iter()
+                .zip(&floor_vec)
+                .map(|(&y_val, &f_val)| (y_val - f_val).abs())
+                .fold(0.0_f64, f64::max)
+                .max(1.0)
+        } else {
+            data.y
+                .iter()
+                .map(|&v| v.abs())
+                .fold(0.0_f64, f64::max)
+                .max(1.0)
+        };
+
+        // Scale y relative to floor
+        let y_scaled: Vec<f64> = data
             .y
             .iter()
-            .map(|&v| v.abs())
-            .fold(0.0_f64, f64::max)
-            .max(1.0); // Minimum 1.0 to avoid division issues
+            .zip(&floor_vec)
+            .map(|(&y_val, &f_val)| (y_val - f_val) / y_scale)
+            .collect();
 
-        let y_scaled: Vec<f64> = data.y.iter().map(|&v| v / y_scale).collect();
-
-        // Scale cap if logistic growth
-        let cap_scaled: Vec<f64> = cap.iter().map(|&v| v / y_scale).collect();
+        // Scale cap relative to floor if logistic growth
+        let cap_scaled: Vec<f64> = cap
+            .iter()
+            .zip(&floor_vec)
+            .map(|(&c_val, &f_val)| (c_val - f_val) / y_scale)
+            .collect();
 
         // Prepare prior scales for regressors
         let mut sigmas = vec![10.0; total_features]; // Default prior scale
@@ -822,11 +890,21 @@ impl Farseer {
     }
 
     pub fn predict(&self, ds: &[String]) -> Result<ForecastResult> {
-        self.predict_with_data(ds, None, &std::collections::HashMap::new())
+        self.predict_with_data(
+            ds,
+            None,
+            &std::collections::HashMap::new(),
+            &std::collections::HashMap::new(),
+        )
     }
 
     pub fn predict_with_cap(&self, ds: &[String], cap: Option<Vec<f64>>) -> Result<ForecastResult> {
-        self.predict_with_data(ds, cap, &std::collections::HashMap::new())
+        self.predict_with_data(
+            ds,
+            cap,
+            &std::collections::HashMap::new(),
+            &std::collections::HashMap::new(),
+        )
     }
 
     pub fn predict_with_data(
@@ -834,6 +912,7 @@ impl Farseer {
         ds: &[String],
         cap: Option<Vec<f64>>,
         regressors: &std::collections::HashMap<String, Vec<f64>>,
+        conditions: &std::collections::HashMap<String, Vec<bool>>,
     ) -> Result<ForecastResult> {
         if !self.fitted {
             return Err(crate::FarseerError::Prediction(
@@ -949,7 +1028,30 @@ impl Farseer {
                 if block.start == block.end {
                     continue;
                 }
-                let x_block = fourier_series(&t_days, block.period, block.order);
+                let mut x_block = fourier_series(&t_days, block.period, block.order);
+
+                // Apply condition if this seasonality has one
+                if idx < all_seasonalities.len() {
+                    if let Some(ref condition_name) = all_seasonalities[idx].condition_name {
+                        if let Some(condition_values) = conditions.get(condition_name) {
+                            // Mask the features where condition is false
+                            for (i, &is_active) in condition_values.iter().enumerate() {
+                                if !is_active && i < x_block.len() {
+                                    // Set all features to 0 when condition is false
+                                    for j in 0..x_block[i].len() {
+                                        x_block[i][j] = 0.0;
+                                    }
+                                }
+                            }
+                        } else {
+                            return Err(crate::FarseerError::Prediction(format!(
+                                "Condition '{}' specified for seasonality '{}' but not found in prediction data",
+                                condition_name, block.name
+                            )));
+                        }
+                    }
+                }
+
                 let beta_slice = &self.beta[block.start..block.end];
                 let mut comp = vec![0.0; ds.len()];
                 for i in 0..x_block.len() {
@@ -1106,9 +1208,40 @@ impl Farseer {
             .map(|i| trend[i] * (1.0 + seasonal_multiplicative[i]) + seasonal_additive[i])
             .collect();
 
-        // Unscale predictions back to original scale
-        let yhat: Vec<f64> = yhat_scaled.iter().map(|&v| v * self.y_scale).collect();
-        let trend: Vec<f64> = trend.iter().map(|&v| v * self.y_scale).collect();
+        // Get floor values for predictions
+        // If history has floor, use it; extend with last floor value if needed
+        let floor_vec = if self.logistic_floor {
+            if let Some(history) = self.history.as_ref() {
+                if let Some(ref floor_data) = history.floor {
+                    let last_floor = floor_data.last().copied().unwrap_or(0.0);
+                    let mut floor_full = floor_data.clone();
+                    while floor_full.len() < ds.len() {
+                        floor_full.push(last_floor);
+                    }
+                    floor_full.truncate(ds.len());
+                    floor_full
+                } else {
+                    vec![0.0; ds.len()]
+                }
+            } else {
+                vec![0.0; ds.len()]
+            }
+        } else {
+            vec![0.0; ds.len()]
+        };
+
+        // Unscale predictions back to original scale and add floor
+        // Prophet formula: trend * y_scale + floor
+        let yhat: Vec<f64> = yhat_scaled
+            .iter()
+            .zip(&floor_vec)
+            .map(|(&v, &f)| v * self.y_scale + f)
+            .collect();
+        let trend: Vec<f64> = trend
+            .iter()
+            .zip(&floor_vec)
+            .map(|(&v, &f)| v * self.y_scale + f)
+            .collect();
 
         // Uncertainty intervals using sigma_obs and interval_width
         // Approximate z-score for 80% interval: ~1.28, for 95%: ~1.96
@@ -1248,6 +1381,7 @@ impl Farseer {
         fourier_order: usize,
         prior_scale: Option<f64>,
         mode: Option<&str>,
+        condition_name: Option<&str>,
     ) -> Result<()> {
         // Validate fourier_order
         if fourier_order == 0 {
@@ -1290,6 +1424,10 @@ impl Farseer {
                 }
             };
             config = config.with_mode(seasonality_mode);
+        }
+
+        if let Some(condition) = condition_name {
+            config = config.with_condition(condition.to_string());
         }
 
         self.seasonalities.push(config);
@@ -1430,6 +1568,13 @@ impl Farseer {
         self.regressors.iter().map(|r| r.name.clone()).collect()
     }
 
+    pub fn get_condition_names(&self) -> Vec<String> {
+        self.seasonalities
+            .iter()
+            .filter_map(|s| s.condition_name.clone())
+            .collect()
+    }
+
     pub fn get_params(&self) -> serde_json::Value {
         let growth_str = match self.trend {
             TrendType::Linear => "linear",
@@ -1463,6 +1608,7 @@ impl Farseer {
                 "fourier_order": s.fourier_order,
                 "prior_scale": s.prior_scale,
                 "mode": format!("{:?}", s.mode),
+                "condition_name": s.condition_name,
             })).collect::<Vec<_>>(),
 
             // Holidays
@@ -1484,6 +1630,7 @@ impl Farseer {
             "t0": self.t0.as_ref().map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string()),
             "t_scale": self.t_scale,
             "y_scale": self.y_scale,
+            "logistic_floor": self.logistic_floor,
             "t_change": self.t_change,
             "k": self.k,
             "m": self.m,
@@ -1579,6 +1726,7 @@ impl Farseer {
                     fourier_order: s["fourier_order"].as_u64().unwrap_or(3) as usize,
                     prior_scale: s["prior_scale"].as_f64().unwrap_or(10.0),
                     mode,
+                    condition_name: s["condition_name"].as_str().map(|s| s.to_string()),
                 });
             }
         }
