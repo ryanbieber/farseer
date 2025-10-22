@@ -334,6 +334,7 @@ class Farseer(_Farseer):
         fourier_order: int,
         prior_scale: Optional[float] = None,
         mode: Optional[str] = None,
+        condition_name: Optional[str] = None,
     ) -> "Farseer":
         """
         Add a custom seasonality component.
@@ -350,13 +351,20 @@ class Farseer(_Farseer):
             Regularization parameter (default: 10.0)
         mode : str, optional
             'additive' or 'multiplicative' (default: model's seasonality_mode)
+        condition_name : str, optional
+            Column name of a boolean in your dataframe which  specifies when this
+            seasonality is active. When the column is True, the seasonality is
+            applied; when False, it is not. This allows seasonality to be
+            conditional on arbitrary features.
 
         Returns
         -------
         self : Farseer
             Model instance for method chaining
         """
-        super().add_seasonality(name, period, fourier_order, prior_scale, mode)
+        super().add_seasonality(
+            name, period, fourier_order, prior_scale, mode, condition_name
+        )
         return self
 
     def add_holidays(
@@ -438,6 +446,27 @@ class Farseer(_Farseer):
         json_str = self.to_json()
         with open(path, "w") as f:
             f.write(json_str)
+
+    @classmethod
+    def from_json(cls, json_str: str) -> "Farseer":
+        """
+        Deserialize model from JSON string.
+
+        Parameters
+        ----------
+        json_str : str
+            JSON string representation of the model
+
+        Returns
+        -------
+        model : Farseer
+            Deserialized model instance
+        """
+        # NOTE: Due to PyO3 limitations, the loaded model will be a Rust Farseer object,
+        # not the Python wrapper. This means Polars DataFrame support is not available
+        # for loaded models - you must use pandas DataFrames.
+        # The core functionality (fit/predict) works identically.
+        return _Farseer.from_json(json_str)
 
     @classmethod
     def load(cls, path: str) -> "Farseer":

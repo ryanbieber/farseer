@@ -258,7 +258,8 @@ fn add_custom_seasonality() {
     m = m.without_yearly_seasonality().without_weekly_seasonality();
 
     // Add custom monthly seasonality
-    m.add_seasonality("monthly", 30.5, 5, None, None).unwrap();
+    m.add_seasonality("monthly", 30.5, 5, None, None, None)
+        .unwrap();
     m.fit(&data).unwrap();
 
     let fcst = m.predict(&ds).unwrap();
@@ -295,7 +296,7 @@ fn multiplicative_seasonality_mode() {
     m = m.without_yearly_seasonality().without_daily_seasonality();
 
     // Add weekly seasonality in multiplicative mode
-    m.add_seasonality("weekly_mult", 7.0, 3, None, Some("multiplicative"))
+    m.add_seasonality("weekly_mult", 7.0, 3, None, Some("multiplicative"), None)
         .unwrap();
     m.fit(&data).unwrap();
 
@@ -342,9 +343,9 @@ fn mixed_additive_and_multiplicative_seasonality() {
         .without_daily_seasonality();
 
     // Add monthly additive and weekly multiplicative seasonalities
-    m.add_seasonality("monthly_add", 30.0, 5, None, Some("additive"))
+    m.add_seasonality("monthly_add", 30.0, 5, None, Some("additive"), None)
         .unwrap();
-    m.add_seasonality("weekly_mult", 7.0, 3, None, Some("multiplicative"))
+    m.add_seasonality("weekly_mult", 7.0, 3, None, Some("multiplicative"), None)
         .unwrap();
     m.fit(&data).unwrap();
 
@@ -366,7 +367,7 @@ fn mixed_additive_and_multiplicative_seasonality() {
 #[test]
 fn invalid_seasonality_mode_returns_error() {
     let mut m = CoreFarseer::new();
-    let result = m.add_seasonality("test", 10.0, 3, None, Some("invalid"));
+    let result = m.add_seasonality("test", 10.0, 3, None, Some("invalid"), None);
     assert!(result.is_err());
     assert!(result
         .unwrap_err()
@@ -385,7 +386,7 @@ fn seasonality_with_prior_scale() {
     m = m.without_yearly_seasonality().without_weekly_seasonality();
 
     // Add custom seasonality with prior scale
-    m.add_seasonality("custom", 15.0, 3, Some(0.1), None)
+    m.add_seasonality("custom", 15.0, 3, Some(0.1), None, None)
         .unwrap();
     m.fit(&data).unwrap();
 
@@ -779,7 +780,8 @@ fn serialization_with_custom_components() {
 
     // Create model with custom seasonality and holidays
     let mut m1 = CoreFarseer::new();
-    m1.add_seasonality("monthly", 30.0, 5, None, None).unwrap();
+    m1.add_seasonality("monthly", 30.0, 5, None, None, None)
+        .unwrap();
     m1.add_holidays(
         "test_holiday",
         vec!["2020-01-15".to_string()],

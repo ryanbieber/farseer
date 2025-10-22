@@ -6,8 +6,10 @@ pub struct TimeSeriesData {
     pub ds: Vec<String>,
     pub y: Vec<f64>,
     pub cap: Option<Vec<f64>>,
+    pub floor: Option<Vec<f64>>,
     pub weights: Option<Vec<f64>>,
     pub regressors: HashMap<String, Vec<f64>>, // Additional regressor columns
+    pub conditions: HashMap<String, Vec<bool>>, // Boolean condition columns for conditional seasonalities
 }
 
 impl TimeSeriesData {
@@ -49,9 +51,21 @@ impl TimeSeriesData {
             ds,
             y,
             cap,
+            floor: None,
             weights,
             regressors: HashMap::new(),
+            conditions: HashMap::new(),
         })
+    }
+
+    pub fn with_floor(mut self, floor: Vec<f64>) -> crate::Result<Self> {
+        if floor.len() != self.ds.len() {
+            return Err(crate::FarseerError::DataValidation(
+                "floor must have same length as ds".to_string(),
+            ));
+        }
+        self.floor = Some(floor);
+        Ok(self)
     }
 
     pub fn with_regressor(mut self, name: String, values: Vec<f64>) -> crate::Result<Self> {
@@ -63,6 +77,17 @@ impl TimeSeriesData {
         }
         self.regressors.insert(name, values);
         Ok(self)
+    }
+
+    pub fn add_condition(&mut self, name: String, values: Vec<bool>) -> crate::Result<()> {
+        if values.len() != self.ds.len() {
+            return Err(crate::FarseerError::DataValidation(format!(
+                "condition '{}' must have same length as ds",
+                name
+            )));
+        }
+        self.conditions.insert(name, values);
+        Ok(())
     }
 
     pub fn len(&self) -> usize {

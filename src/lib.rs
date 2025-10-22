@@ -186,6 +186,17 @@ impl Farseer {
             None
         };
 
+        let floor = if df_clean.hasattr("floor")? {
+            Some(
+                df_clean
+                    .getattr("floor")?
+                    .call_method0("tolist")?
+                    .extract()?,
+            )
+        } else {
+            None
+        };
+
         let weights = if df_clean.hasattr("weight")? {
             Some(
                 df_clean
@@ -199,6 +210,13 @@ impl Farseer {
 
         let mut data = TimeSeriesData::new(ds, y, cap, weights)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        // Add floor if provided
+        if let Some(floor_vec) = floor {
+            data = data
+                .with_floor(floor_vec)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        }
 
         // Extract regressor columns if any are defined
         // We need to get the list of regressors from the inner model
@@ -221,6 +239,25 @@ impl Farseer {
             }
         }
 
+        // Extract condition columns for conditional seasonalities
+        let condition_names = self.inner.get_condition_names();
+        for condition_name in condition_names {
+            if df_clean.hasattr(condition_name.as_str())? {
+                let condition_series = df_clean.getattr(condition_name.as_str())?;
+                let condition_values: Vec<bool> =
+                    condition_series.call_method0("tolist")?.extract()?;
+                data.add_condition(condition_name.clone(), condition_values)
+                    .map_err(|e| {
+                        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
+                    })?;
+            } else {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Condition '{}' not found in dataframe",
+                    condition_name
+                )));
+            }
+        }
+
         py.detach(|| self.inner.fit(&data))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
@@ -233,7 +270,7 @@ impl Farseer {
         use std::collections::HashMap;
 
         // If df is None, use history (training data) like Prophet
-        let (ds, cap, regressors) = if let Some(df_val) = df {
+        let (ds, cap, regressors, conditions) = if let Some(df_val) = df {
             // Convert ds column to strings, handling datetime objects
             let ds_series = df_val.getattr("ds")?;
             let ds = convert_ds_to_strings(ds_series)?;
@@ -264,14 +301,32 @@ impl Farseer {
                 }
             }
 
-            (ds, cap, regressors_map)
+            // Extract conditions
+            let condition_names = self.inner.get_condition_names();
+            let mut conditions_map = HashMap::new();
+            for condition_name in condition_names {
+                if df_val.hasattr(condition_name.as_str())? {
+                    let condition_series = df_val.getattr(condition_name.as_str())?;
+                    let condition_values: Vec<bool> =
+                        condition_series.call_method0("tolist")?.extract()?;
+                    conditions_map.insert(condition_name.clone(), condition_values);
+                } else {
+                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                        "Condition '{}' not found in prediction dataframe",
+                        condition_name
+                    )));
+                }
+            }
+
+            (ds, cap, regressors_map, conditions_map)
         } else {
             // Use history if df is None
             if let Some(history) = self.inner.get_history() {
                 let ds = history.ds.clone();
                 let cap = history.cap.clone();
                 let regressors = history.regressors.clone();
-                (ds, cap, regressors)
+                let conditions = history.conditions.clone();
+                (ds, cap, regressors, conditions)
             } else {
                 return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
                     "Model must be fitted before calling predict() without a dataframe",
@@ -280,7 +335,10 @@ impl Farseer {
         };
 
         let forecast = py
-            .detach(|| self.inner.predict_with_data(&ds, cap, &regressors))
+            .detach(|| {
+                self.inner
+                    .predict_with_data(&ds, cap, &regressors, &conditions)
+            })
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         let pd = py.import("pandas")?;
@@ -364,7 +422,7 @@ impl Farseer {
     }
 
     /// Add custom seasonality
-    #[pyo3(signature = (name, period, fourier_order, prior_scale=None, mode=None))]
+    #[pyo3(signature = (name, period, fourier_order, prior_scale=None, mode=None, condition_name=None))]
     fn add_seasonality(
         mut slf: PyRefMut<'_, Self>,
         name: &str,
@@ -372,9 +430,17 @@ impl Farseer {
         fourier_order: usize,
         prior_scale: Option<f64>,
         mode: Option<&str>,
+        condition_name: Option<&str>,
     ) -> PyResult<Py<Self>> {
         slf.inner
-            .add_seasonality(name, period, fourier_order, prior_scale, mode)
+            .add_seasonality(
+                name,
+                period,
+                fourier_order,
+                prior_scale,
+                mode,
+                condition_name,
+            )
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(slf.into())
     }
@@ -431,6 +497,11 @@ impl Farseer {
     /// Get list of regressor names
     fn get_regressor_names(&self) -> Vec<String> {
         self.inner.get_regressor_names()
+    }
+
+    /// Get list of condition names for conditional seasonalities
+    fn get_condition_names(&self) -> Vec<String> {
+        self.inner.get_condition_names()
     }
 
     /// Save model to file
