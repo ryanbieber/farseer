@@ -1,26 +1,4 @@
 functions {
-  matrix get_changepoint_matrix(vector t, vector t_change, int T, int S) {
-    // Assumes t and t_change are sorted.
-    matrix[T, S] A;
-    row_vector[S] a_row;
-    int cp_idx;
-
-    // Start with an empty matrix.
-    A = rep_matrix(0, T, S);
-    a_row = rep_row_vector(0, S);
-    cp_idx = 1;
-
-    // Fill in each row of A.
-    for (i in 1:T) {
-      while ((cp_idx <= S) && (t[i] >= t_change[cp_idx])) {
-        a_row[cp_idx] = 1;
-        cp_idx = cp_idx + 1;
-      }
-      A[i] = a_row;
-    }
-    return A;
-  }
-
   // Logistic trend functions
 
   vector logistic_gamma(real k, real m, vector delta, vector t_change, int S) {
@@ -87,6 +65,7 @@ data {
   vector[T] y;          // Time series
   int S;                // Number of changepoints
   vector[S] t_change;   // Times of trend changepoints
+  matrix[T,S] A;        // Pre-computed changepoint matrix (passed from Rust)
   matrix[T,K] X;        // Regressors
   vector<lower=0>[K] sigmas;     // Scale on seasonality prior (must be positive)
   real<lower=0> tau;    // Scale on changepoints prior
@@ -97,7 +76,6 @@ data {
 }
 
 transformed data {
-  matrix[T, S] A = get_changepoint_matrix(t, t_change, T, S);
   matrix[T, K] X_sa = X .* rep_matrix(s_a', T);
   matrix[T, K] X_sm = X .* rep_matrix(s_m', T);
   int has_weights = (max(weights) != min(weights)) || (min(weights) != 1.0);

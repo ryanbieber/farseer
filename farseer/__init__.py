@@ -111,7 +111,7 @@ class Farseer(_Farseer):
     ----------
     growth : str, default 'linear'
         'linear', 'logistic', or 'flat' trend
-    n_changepoints : int, default 25
+    n_changepoints : int, default 15
         Number of potential changepoints
     changepoint_range : float, default 0.8
         Proportion of history in which trend changepoints will be estimated

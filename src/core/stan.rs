@@ -187,6 +187,9 @@ impl StanModel {
         // Use provided weights or default to equal weights
         let weights_vec = weights.map(|w| w.to_vec()).unwrap_or_else(|| vec![1.0; n]);
 
+        // Pre-compute changepoint matrix in Rust (much faster than Stan)
+        let changepoint_mat = crate::core::trend::changepoint_matrix(t, t_change);
+
         // Prepare data in JSON format matching Stan's data block
         let data = json!({
             "T": n,
@@ -196,6 +199,7 @@ impl StanModel {
             "y": y,
             "S": s,
             "t_change": t_change,
+            "A": changepoint_mat,  // Pass pre-computed matrix
             "X": x,
             "sigmas": sigmas,
             "tau": tau,

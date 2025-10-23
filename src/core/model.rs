@@ -259,7 +259,7 @@ impl Farseer {
     pub fn new() -> Self {
         Self {
             trend: TrendType::Linear,
-            n_changepoints: 25,
+            n_changepoints: 15,
             changepoint_range: 0.8,
             changepoint_prior_scale: 0.05,
             yearly_seasonality: true,
