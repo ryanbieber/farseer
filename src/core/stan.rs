@@ -209,7 +209,7 @@ impl StanModel {
             "weights": weights_vec,
         });
 
-        // Initialize parameters using Prophet's approach
+        // Initialize parameters using hot-start strategy for faster convergence
         let y_mean = y.iter().sum::<f64>() / y.len() as f64;
         let y_std = (y.iter().map(|v| (v - y_mean).powi(2)).sum::<f64>() / y.len() as f64).sqrt();
         let y_scaled: Vec<f64> = if y_std > 1e-9 {
@@ -232,12 +232,55 @@ impl StanModel {
             crate::core::trend::linear_growth_init(t, &y_scaled)
         };
 
+        // Determine if we should use hot-start initialization
+        // Only use hot-start if we have sufficient data relative to parameters
+        // Rule of thumb: need at least 10 observations per changepoint + 20 per regressor
+        let min_obs_needed = s * 10 + k * 20;
+        let use_hot_start = n >= min_obs_needed && n >= 100;
+
+        // Hot-start beta initialization: use least squares if we have regressors
+        let beta_init = if use_hot_start && k > 0 && !x.is_empty() {
+            crate::core::trend::initialize_beta(
+                &y_scaled,
+                x,
+                k_init,
+                m_init,
+                t,
+                &changepoint_mat,
+                t_change,
+            )
+        } else {
+            vec![0.0; k]
+        };
+
+        // Hot-start delta initialization: detect initial trend changes
+        let delta_init = if use_hot_start && s > 0 {
+            crate::core::trend::initialize_delta(&y_scaled, t, &changepoint_mat, k_init, m_init)
+        } else {
+            vec![0.0; s]
+        };
+
+        // Hot-start sigma_obs: estimate from initial residuals
+        let sigma_init = if use_hot_start {
+            crate::core::trend::initialize_sigma(
+                &y_scaled,
+                k_init,
+                m_init,
+                &delta_init,
+                t,
+                &changepoint_mat,
+                t_change,
+            )
+        } else {
+            0.5
+        };
+
         let init = json!({
             "k": k_init,
             "m": m_init,
-            "delta": vec![0.0; s],
-            "beta": vec![0.0; k],
-            "sigma_obs": 0.5,
+            "delta": delta_init,
+            "beta": beta_init,
+            "sigma_obs": sigma_init,
         });
 
         // Create CmdStan optimizer
