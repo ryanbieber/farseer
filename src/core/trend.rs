@@ -424,8 +424,8 @@ fn solve_linear_system(a: &[Vec<f64>], b: &[f64]) -> Vec<f64> {
         }
 
         let mut sum = aug[i][n];
-        for j in (i + 1)..n {
-            sum -= aug[i][j] * x[j];
+        for (j, &x_j) in x.iter().enumerate().skip(i + 1).take(n - i - 1) {
+            sum -= aug[i][j] * x_j;
         }
         x[i] = sum / aug[i][i];
     }
