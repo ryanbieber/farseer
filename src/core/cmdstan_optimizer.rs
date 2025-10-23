@@ -168,7 +168,6 @@ impl CmdStanOptimizer {
         init: &serde_json::Value,
         num_threads_override: Option<usize>,
     ) -> Result<OptimizationResult> {
-        use std::io::Write;
         use std::process::Command;
 
         // Check if model binary exists
@@ -187,11 +186,11 @@ impl CmdStanOptimizer {
         }
 
         // Create temporary files for data and init with proper extensions
-        let mut data_file = tempfile::Builder::new()
+        let data_file = tempfile::Builder::new()
             .suffix(".json")
             .tempfile()
             .map_err(crate::FarseerError::Io)?;
-        let mut init_file = tempfile::Builder::new()
+        let init_file = tempfile::Builder::new()
             .suffix(".json")
             .tempfile()
             .map_err(crate::FarseerError::Io)?;
@@ -200,25 +199,50 @@ impl CmdStanOptimizer {
             .tempfile()
             .map_err(crate::FarseerError::Io)?;
 
-        // Write data in JSON format (CmdStan's preferred input format)
-        let data_content = serde_json::to_string_pretty(data).map_err(|e| {
+        // Serialize data in compact JSON format (not pretty-printed for speed)
+        let data_content = serde_json::to_string(data).map_err(|e| {
             crate::FarseerError::StanError(format!("Failed to serialize data: {}", e))
         })?;
 
-        data_file
-            .write_all(data_content.as_bytes())
-            .map_err(crate::FarseerError::Io)?;
-        data_file.flush().map_err(crate::FarseerError::Io)?;
-
-        // Write init in JSON format
-        let init_content = serde_json::to_string_pretty(init).map_err(|e| {
+        // Serialize init in compact JSON format (not pretty-printed for speed)
+        let init_content = serde_json::to_string(init).map_err(|e| {
             crate::FarseerError::StanError(format!("Failed to serialize init: {}", e))
         })?;
 
-        init_file
-            .write_all(init_content.as_bytes())
-            .map_err(crate::FarseerError::Io)?;
-        init_file.flush().map_err(crate::FarseerError::Io)?;
+        // Write files in parallel using scoped threads for better performance
+        let data_path = data_file.path().to_path_buf();
+        let init_path = init_file.path().to_path_buf();
+
+        std::thread::scope(|s| {
+            let data_handle = s.spawn(|| {
+                use std::io::Write;
+                let mut file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .open(&data_path)
+                    .map_err(crate::FarseerError::Io)?;
+                file.write_all(data_content.as_bytes())
+                    .map_err(crate::FarseerError::Io)?;
+                file.flush().map_err(crate::FarseerError::Io)?;
+                Ok::<(), crate::FarseerError>(())
+            });
+
+            let init_handle = s.spawn(|| {
+                use std::io::Write;
+                let mut file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .open(&init_path)
+                    .map_err(crate::FarseerError::Io)?;
+                file.write_all(init_content.as_bytes())
+                    .map_err(crate::FarseerError::Io)?;
+                file.flush().map_err(crate::FarseerError::Io)?;
+                Ok::<(), crate::FarseerError>(())
+            });
+
+            // Wait for both to complete
+            data_handle.join().unwrap()?;
+            init_handle.join().unwrap()?;
+            Ok::<(), crate::FarseerError>(())
+        })?;
 
         // Set LD_LIBRARY_PATH for TBB libraries
         let model_dir = self
@@ -269,13 +293,13 @@ impl CmdStanOptimizer {
         self.parse_cmdstan_output(output_file.path())
     }
 
-    /// Parse CmdStan output CSV file
+    /// Parse CmdStan output CSV file (optimized version)
     fn parse_cmdstan_output(&self, path: &std::path::Path) -> Result<OptimizationResult> {
         use std::fs::File;
         use std::io::{BufRead, BufReader};
 
         let file = File::open(path).map_err(crate::FarseerError::Io)?;
-        let reader = BufReader::new(file);
+        let reader = BufReader::with_capacity(8192, file); // Larger buffer for faster reading
 
         let mut header = Vec::new();
         let mut last_line = String::new();
@@ -306,34 +330,45 @@ impl CmdStanOptimizer {
             ));
         }
 
-        // Parse the last line
-        let values: Vec<f64> = last_line
-            .split(',')
-            .filter_map(|s| s.trim().parse::<f64>().ok())
-            .collect();
+        // Parse the last line with pre-allocated capacity
+        let mut values = Vec::with_capacity(header.len());
+        for s in last_line.split(',') {
+            if let Ok(v) = s.trim().parse::<f64>() {
+                values.push(v);
+            }
+        }
 
-        // Find parameter indices in header
-        let find_index = |name: &str| header.iter().position(|h| h == name);
-
-        let k_idx = find_index("k")
+        // Find parameter indices in header (cache lookups)
+        let k_idx = header
+            .iter()
+            .position(|h| h == "k")
             .ok_or_else(|| crate::FarseerError::StanError("k not found in output".to_string()))?;
-        let m_idx = find_index("m")
+        let m_idx = header
+            .iter()
+            .position(|h| h == "m")
             .ok_or_else(|| crate::FarseerError::StanError("m not found in output".to_string()))?;
-        let sigma_obs_idx = find_index("sigma_obs").ok_or_else(|| {
-            crate::FarseerError::StanError("sigma_obs not found in output".to_string())
-        })?;
+        let sigma_obs_idx = header
+            .iter()
+            .position(|h| h == "sigma_obs")
+            .ok_or_else(|| {
+                crate::FarseerError::StanError("sigma_obs not found in output".to_string())
+            })?;
 
-        // Extract delta and beta arrays
-        let mut delta = Vec::new();
-        let mut beta = Vec::new();
+        // Pre-count delta and beta sizes for allocation
+        let delta_count = header.iter().filter(|h| h.starts_with("delta.")).count();
+        let beta_count = header.iter().filter(|h| h.starts_with("beta.")).count();
+
+        // Extract delta and beta arrays with pre-allocation
+        let mut delta = Vec::with_capacity(delta_count);
+        let mut beta = Vec::with_capacity(beta_count);
 
         for (i, h) in header.iter().enumerate() {
-            if h.starts_with("delta.") {
-                if i < values.len() {
+            if i < values.len() {
+                if h.starts_with("delta.") {
                     delta.push(values[i]);
+                } else if h.starts_with("beta.") {
+                    beta.push(values[i]);
                 }
-            } else if h.starts_with("beta.") && i < values.len() {
-                beta.push(values[i]);
             }
         }
 
