@@ -74,7 +74,7 @@ impl Farseer {
     #[allow(unused_variables)] // Prophet compatibility parameters
     #[pyo3(signature = (
         growth="linear",
-        n_changepoints=25,
+        n_changepoints=15,
         changepoint_range=0.8,
         changepoint_prior_scale=0.05,
         yearly_seasonality=true,
