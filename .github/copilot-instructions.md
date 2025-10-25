@@ -1,5 +1,7 @@
 # GitHub Copilot Instructions
 
+Always use UV to run python code.
+
 These instructions are targeted at automated coding assistants (Copilot-style agents) contributing code to the Farseer (seer) repository. They focus on repository-specific conventions, build/test workflows, and code patterns discovered in the codebase.
 
 ## General rules

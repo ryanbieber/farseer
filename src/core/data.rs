@@ -10,6 +10,7 @@ pub struct TimeSeriesData {
     pub weights: Option<Vec<f64>>,
     pub regressors: HashMap<String, Vec<f64>>, // Additional regressor columns
     pub conditions: HashMap<String, Vec<bool>>, // Boolean condition columns for conditional seasonalities
+    pub series_id: Option<String>, // Optional series identifier for multi-series support
 }
 
 impl TimeSeriesData {
@@ -55,6 +56,7 @@ impl TimeSeriesData {
             weights,
             regressors: HashMap::new(),
             conditions: HashMap::new(),
+            series_id: None,
         })
     }
 
@@ -88,6 +90,11 @@ impl TimeSeriesData {
         }
         self.conditions.insert(name, values);
         Ok(())
+    }
+
+    pub fn with_series_id(mut self, series_id: String) -> Self {
+        self.series_id = Some(series_id);
+        self
     }
 
     pub fn len(&self) -> usize {
