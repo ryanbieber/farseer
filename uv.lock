@@ -582,7 +582,6 @@ dependencies = [
     { name = "pandas" },
     { name = "polars" },
     { name = "pyarrow" },
-    { name = "tqdm" },
 ]
 
 [package.optional-dependencies]
@@ -598,9 +597,6 @@ notebook = [
     { name = "prophet" },
     { name = "scikit-learn" },
     { name = "seaborn" },
-]
-parallel = [
-    { name = "tqdm" },
 ]
 
 [package.metadata]
@@ -620,8 +616,6 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0" },
     { name = "scikit-learn", marker = "extra == 'notebook'", specifier = ">=1.0" },
     { name = "seaborn", marker = "extra == 'notebook'", specifier = ">=0.12" },
-    { name = "tqdm", specifier = ">=4.36.1" },
-    { name = "tqdm", marker = "extra == 'parallel'", specifier = ">=4.36.1" },
 ]
 
 [[package]]

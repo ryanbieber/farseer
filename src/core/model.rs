@@ -143,7 +143,6 @@ pub struct Farseer {
     t_change: Vec<f64>,
     // Y scaling (Prophet compatibility)
     y_scale: f64,
-    #[allow(dead_code)]
     logistic_floor: bool,
     // Trend params
     k: f64,

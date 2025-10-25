@@ -3,9 +3,6 @@ recursive-include stan *.stan
 recursive-include stan prophet_model*
 include stan/README.md
 
-# Include version file if it exists
-include farseer/__version__.py
-
 # Include package metadata
 include README.md
 include LICENSE
