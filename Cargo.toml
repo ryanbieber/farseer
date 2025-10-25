@@ -25,21 +25,14 @@ anyhow = "1.0"
 chrono = "0.4"
 tempfile = "3.0"
 
-# Optimization
-argmin = "0.10"
-argmin-math = { version = "0.4", features = ["vec"] }
-
 # Python bindings
 pyo3 = { version = "0.26", features = ["extension-module"] }
 numpy = "0.26"  # For numpy array conversion
-pythonize = "0.26"  # For serialization
 
 [package.metadata.maturin]
 name = "farseer"
 
 [dev-dependencies]
-approx = "0.5"
-criterion = "0.5"
 
 # Integration tests
 [[test]]

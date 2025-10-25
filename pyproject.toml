@@ -40,16 +40,12 @@ dependencies = [
     "pandas>=1.0.4",
     "polars>=0.20.0",
     "pyarrow>=10.0",
-    "tqdm>=4.36.1",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
-]
-parallel = [
-    "tqdm>=4.36.1",
 ]
 notebook = [
     "jupyter>=1.0",
