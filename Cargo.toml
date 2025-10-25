@@ -37,7 +37,7 @@ name = "farseer"
 # Integration tests
 [[test]]
 name = "integration_tests"
-path = "rust_tests/integration_tests.rs"
+path = "tests/integration_tests.rs"
 
 # Maturin will use this for building Python wheels
 [build-dependencies]
