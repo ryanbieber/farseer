@@ -42,9 +42,10 @@
             </div>
             <ul class="nav-links">
                 <li><a href="index.html#features">Features</a></li>
-                <li><a href="index.html#quickstart">Quick Start</a></li>
+                <li><a href="quickstart.html">Quick Start</a></li>
                 <li><a href="examples.html">Examples</a></li>
-                <li><a href="index.html#docs">Docs</a></li>
+                <li><a href="migration.html">Migration</a></li>
+                <li><a href="api-reference.html">API</a></li>
                 <li><a href="https://github.com/ryanbieber/seer" target="_blank">GitHub</a></li>
             </ul>
         </div>
@@ -392,13 +393,441 @@ m.add_seasonality(
     mode='additive'
 )
 
-# Can also add conditional seasonality
-# For example, different patterns for weekdays vs weekends
+m.fit(df)</code></pre>
+                </div>
+            </div>
+
+            <!-- Conditional Seasonality -->
+            <div id="conditional" class="example-section">
+                <h2>📅 Conditional Seasonality</h2>
+                <p class="example-description">
+                    Apply seasonal patterns only when certain conditions are met. Perfect for modeling
+                    different behavior on weekdays vs weekends, holidays vs normal days, or any binary condition.
+                </p>
+
+                <h3>Weekday vs Weekend Patterns</h3>
+                <div class="code-block">
+                    <pre><code>import polars as pl
+import numpy as np
+from datetime import datetime
+from farseer import Farseer
+
+# Create data with different patterns on weekdays vs weekends
+np.random.seed(42)
+n = 365 * 2
+dates = pl.date_range(datetime(2020, 1, 1), periods=n, interval='1d', eager=True)
+
+# Base trend
+trend = np.arange(n) * 0.3 + 100
+
+# Different weekly patterns for weekdays vs weekends
+is_weekday = dates.dt.weekday() < 5
+weekly_pattern = np.where(
+    is_weekday,
+    5 * np.sin(2 * np.pi * np.arange(n) / 7),      # Weekday pattern
+    -8 * np.sin(2 * np.pi * np.arange(n) / 7)      # Weekend pattern (different amplitude)
+)
+
+y = trend + weekly_pattern + np.random.randn(n) * 3
+
+df = pl.DataFrame({
+    'ds': dates,
+    'y': y,
+    'is_weekday': is_weekday
+})
+
+# Create model with conditional seasonality
+m = Farseer(
+    yearly_seasonality=False,
+    weekly_seasonality=False  # Disable default weekly seasonality
+)
+
+# Add conditional weekly seasonality for weekdays
 m.add_seasonality(
-    name='weekly_weekday',
+    name='weekly_on_weekday',
     period=7,
     fourier_order=3,
-    condition_name='is_weekday'  # Requires 'is_weekday' column in data
+    condition_name='is_weekday'
+)
+
+# Add conditional weekly seasonality for weekends
+m.add_seasonality(
+    name='weekly_on_weekend',
+    period=7,
+    fourier_order=3,
+    condition_name='is_weekend'
+)
+
+# Add weekend condition
+df = df.with_columns((~pl.col('is_weekday')).alias('is_weekend'))
+
+# Fit model
+train_size = int(n * 0.8)
+train = df[:train_size]
+test = df[train_size:]
+
+m.fit(train)
+
+# Predict (remember to add condition columns to future!)
+future = m.make_future_dataframe(periods=90)
+future = future.with_columns([
+    (pl.col('ds').dt.weekday() < 5).alias('is_weekday'),
+    (pl.col('ds').dt.weekday() >= 5).alias('is_weekend')
+])
+
+forecast = m.predict(future)
+print(forecast.select(['ds', 'yhat', 'weekly_on_weekday', 'weekly_on_weekend']).tail())</code></pre>
+                </div>
+
+                <h3>Multiple Conditional Seasonalities</h3>
+                <div class="code-block">
+                    <pre><code>from farseer import Farseer
+
+m = Farseer()
+
+# Different monthly patterns during summer vs winter
+m.add_seasonality(
+    name='monthly_summer',
+    period=30.5,
+    fourier_order=5,
+    condition_name='is_summer'
+)
+
+m.add_seasonality(
+    name='monthly_winter',
+    period=30.5,
+    fourier_order=5,
+    condition_name='is_winter'
+)
+
+# Add conditions to dataframe
+df = df.with_columns([
+    (pl.col('ds').dt.month().is_in([6, 7, 8])).alias('is_summer'),
+    (pl.col('ds').dt.month().is_in([12, 1, 2])).alias('is_winter')
+])
+
+m.fit(df)
+
+# Remember to add conditions to future dataframe too!
+future = m.make_future_dataframe(periods=365)
+future = future.with_columns([
+    (pl.col('ds').dt.month().is_in([6, 7, 8])).alias('is_summer'),
+    (pl.col('ds').dt.month().is_in([12, 1, 2])).alias('is_winter')
+])
+
+forecast = m.predict(future)</code></pre>
+                </div>
+
+                <h3>Key Points</h3>
+                <ul>
+                    <li><strong>Condition columns:</strong> Must be boolean (True/False) in both training and future data</li>
+                    <li><strong>Masking:</strong> Fourier features are multiplied by 0.0 when condition is False, 1.0 when True</li>
+                    <li><strong>Multiple conditions:</strong> Can have multiple conditional seasonalities with different conditions</li>
+                    <li><strong>Serialization:</strong> Condition names are saved with the model</li>
+                </ul>
+            </div>
+
+            <!-- Floor Parameter -->
+            <div id="floor" class="example-section">
+                <h2>📏 Floor & Cap Parameters</h2>
+                <p class="example-description">
+                    For logistic growth models, you can specify both a cap (maximum value) and floor (minimum value)
+                    to bound your forecasts. This is useful for modeling phenomena with natural upper and lower limits.
+                </p>
+
+                <h3>Logistic Growth with Floor</h3>
+                <div class="code-block">
+                    <pre><code>import polars as pl
+import numpy as np
+from datetime import datetime
+from farseer import Farseer
+
+# Create saturating data with both upper and lower bounds
+np.random.seed(42)
+n = 365 * 3
+dates = pl.date_range(datetime(2020, 1, 1), periods=n, interval='1d', eager=True)
+
+# Logistic growth curve between floor and cap
+t = np.arange(n)
+floor_val = 2.0
+cap_val = 10.0
+k = 0.01  # Growth rate
+
+# Logistic function: floor + (cap - floor) / (1 + exp(-k*(t - t0)))
+t0 = n / 2
+y = floor_val + (cap_val - floor_val) / (1 + np.exp(-k * (t - t0)))
+y += np.random.randn(n) * 0.3  # Add noise
+
+df = pl.DataFrame({
+    'ds': dates,
+    'y': y,
+    'floor': floor_val,  # Minimum value
+    'cap': cap_val       # Maximum value
+})
+
+# Create logistic growth model
+m = Farseer(growth='logistic', yearly_seasonality=False)
+
+# Fit model
+train_size = int(n * 0.8)
+train = df[:train_size]
+test = df[train_size:]
+
+m.fit(train)
+
+# Predict (must include floor and cap in future dataframe)
+future = m.make_future_dataframe(periods=180)
+future = future.with_columns([
+    pl.lit(floor_val).alias('floor'),
+    pl.lit(cap_val).alias('cap')
+])
+
+forecast = m.predict(future)
+
+print(f"Floor value: {floor_val}")
+print(f"Cap value: {cap_val}")
+print(f"Min prediction: {forecast['yhat'].min():.2f}")
+print(f"Max prediction: {forecast['yhat'].max():.2f}")</code></pre>
+                </div>
+
+                <h3>Cap Only (Standard Logistic Growth)</h3>
+                <div class="code-block">
+                    <pre><code>import polars as pl
+from farseer import Farseer
+
+# Market share example (0% to 100%)
+df = pl.DataFrame({
+    'ds': dates,
+    'y': market_share,  # Values between 0 and 100
+    'cap': 100.0        # Maximum market share
+})
+
+m = Farseer(growth='logistic')
+m.fit(df)
+
+future = m.make_future_dataframe(periods=365)
+future = future.with_columns(pl.lit(100.0).alias('cap'))
+forecast = m.predict(future)</code></pre>
+                </div>
+
+                <h3>Important Notes</h3>
+                <ul>
+                    <li><strong>Validation:</strong> Cap must be greater than floor for all data points</li>
+                    <li><strong>Scaling:</strong> Both y and cap are scaled relative to floor internally</li>
+                    <li><strong>Future data:</strong> Both floor and cap must be present in future dataframe</li>
+                    <li><strong>Constant values:</strong> Floor and cap don't have to be constant (can vary over time)</li>
+                </ul>
+            </div>
+
+            <!-- Regressor Standardization -->
+            <div id="regressor-standardization" class="example-section">
+                <h2>📊 Regressor Standardization</h2>
+                <p class="example-description">
+                    Farseer intelligently handles regressor standardization, automatically detecting binary
+                    vs continuous regressors and standardizing appropriately for optimal model performance.
+                </p>
+
+                <h3>Auto-Detection Mode (Recommended)</h3>
+                <div class="code-block">
+                    <pre><code>import polars as pl
+import numpy as np
+from datetime import datetime
+from farseer import Farseer
+
+# Create data with mixed regressor types
+np.random.seed(42)
+n = 365 * 2
+dates = pl.date_range(datetime(2020, 1, 1), periods=n, interval='1d', eager=True)
+
+# Binary regressor (0 or 1)
+is_weekend = (dates.dt.weekday() >= 5).cast(pl.Int64)
+
+# Continuous regressor
+temperature = 15 + 10 * np.sin(2 * np.pi * np.arange(n) / 365.25) + np.random.randn(n) * 3
+
+# Another binary regressor
+is_promo = np.random.choice([0, 1], n, p=[0.9, 0.1])
+
+# Create target variable
+y = (100 + np.arange(n) * 0.3 +
+     (-10 * is_weekend) +
+     (0.5 * temperature) +
+     (15 * is_promo) +
+     np.random.randn(n) * 3)
+
+df = pl.DataFrame({
+    'ds': dates,
+    'y': y,
+    'is_weekend': is_weekend,
+    'temperature': temperature,
+    'is_promo': is_promo
+})
+
+# Create model with auto-standardization
+m = Farseer()
+
+# Binary regressors won't be standardized (mean=0, std=1 used)
+m.add_regressor('is_weekend', standardize='auto')
+m.add_regressor('is_promo', standardize='auto')
+
+# Continuous regressor will be standardized (z-score normalization)
+m.add_regressor('temperature', standardize='auto')
+
+m.fit(df)
+
+# Get coefficients
+from farseer import regressor_coefficients
+coeffs = regressor_coefficients(m)
+print("Regressor coefficients:")
+print(coeffs)</code></pre>
+                </div>
+
+                <h3>Standardization Modes</h3>
+                <div class="code-block">
+                    <pre><code>from farseer import Farseer
+
+m = Farseer()
+
+# Auto mode (recommended): detects binary vs continuous
+m.add_regressor('feature1', standardize='auto')
+
+# Force standardization (even for binary)
+m.add_regressor('feature2', standardize='true')
+
+# Force no standardization
+m.add_regressor('feature3', standardize='false')
+
+m.fit(df)</code></pre>
+                </div>
+
+                <h3>How Auto-Detection Works</h3>
+                <div class="code-block">
+                    <pre><code># Auto mode detection logic:
+# - Binary regressor (only 0 and 1 values): NOT standardized
+#   → Uses mu=0, std=1 (no transformation)
+#
+# - Continuous regressor: IS standardized
+#   → Uses mu=mean(x), std=std(x)
+#   → Transforms: (x - mu) / std
+#
+# - Constant regressor: NEVER standardized
+#   → Uses mu=value, std=1
+
+# Example:
+df['binary_flag'] = [0, 1, 0, 1, ...]  # Only 0s and 1s → NOT standardized
+df['temperature'] = [15.2, 18.4, ...]  # Continuous → IS standardized
+df['constant'] = [5.0, 5.0, ...]       # Constant → NOT standardized</code></pre>
+                </div>
+
+                <h3>When to Use Each Mode</h3>
+                <ul>
+                    <li><strong>'auto' (default):</strong> Best for most cases, intelligently handles different regressor types</li>
+                    <li><strong>'true':</strong> When you want all regressors on same scale (even binary)</li>
+                    <li><strong>'false':</strong> When your features are already on appropriate scales or have meaningful units</li>
+                </ul>
+
+                <h3>Impact on Coefficients</h3>
+                <div class="code-block">
+                    <pre><code># Without standardization:
+# - Coefficient magnitude depends on regressor scale
+# - Hard to compare importance across regressors
+# - Example: temperature coefficient ~0.5, binary flag coefficient ~-10
+
+# With standardization:
+# - Coefficients are more comparable
+# - Represents effect of 1 standard deviation change
+# - Easier to interpret relative importance</code></pre>
+                </div>
+            </div>
+
+            <!-- Holiday Priors -->
+            <div id="holiday-priors" class="example-section">
+                <h2>🎄 Holiday Prior Scales</h2>
+                <p class="example-description">
+                    Farseer allows independent prior scales for each holiday, giving you fine control over
+                    how strongly each event affects your forecast. This is separate from seasonality priors.
+                </p>
+
+                <h3>Different Priors for Different Holidays</h3>
+                <div class="code-block">
+                    <pre><code>from farseer import Farseer
+from datetime import datetime
+
+m = Farseer()
+
+# Major holiday with strong effect
+m.add_holidays(
+    'christmas',
+    dates=[
+        datetime(2020, 12, 25),
+        datetime(2021, 12, 25),
+        datetime(2022, 12, 25)
+    ],
+    prior_scale=20.0,  # Large prior → strong effect allowed
+    lower_window=-1,   # Include day before
+    upper_window=1     # Include day after
+)
+
+# Medium holiday
+m.add_holidays(
+    'thanksgiving',
+    dates=[
+        datetime(2020, 11, 26),
+        datetime(2021, 11, 25),
+        datetime(2022, 11, 24)
+    ],
+    prior_scale=10.0   # Default prior scale
+)
+
+# Minor event with weak effect
+m.add_holidays(
+    'minor_event',
+    dates=[datetime(2020, 3, 17), datetime(2021, 3, 17)],
+    prior_scale=5.0    # Small prior → weak effect
+)
+
+m.fit(df)
+
+# Holiday effects are independent from seasonality_prior_scale
+print(f"Seasonality prior: {m.seasonality_prior_scale}")
+print(f"Holiday priors: configured per holiday")</code></pre>
+                </div>
+
+                <h3>Understanding Prior Scales</h3>
+                <div class="code-block">
+                    <pre><code># Prior scale interpretation:
+# - Larger values (20+): Allow strong holiday effects
+# - Medium values (10): Balanced (default)
+# - Smaller values (5-): Regularize toward zero (weak effects)
+
+# Example use cases:
+# - Black Friday (retail): prior_scale=25.0 → huge impact expected
+# - Christmas: prior_scale=20.0 → strong impact
+# - Valentine's Day: prior_scale=10.0 → moderate impact
+# - Minor awareness day: prior_scale=3.0 → minimal impact</code></pre>
+                </div>
+
+                <h3>Holiday Priors vs Seasonality Priors</h3>
+                <div class="code-block">
+                    <pre><code>from farseer import Farseer
+
+m = Farseer(
+    seasonality_prior_scale=10.0  # Affects ALL seasonalities
+)
+
+# This is SEPARATE from holiday priors
+m.add_holidays(
+    'christmas',
+    dates=[...],
+    prior_scale=20.0  # Independent from seasonality_prior_scale
+)
+
+# Custom seasonality also uses seasonality_prior_scale by default
+m.add_seasonality(
+    name='monthly',
+    period=30.5,
+    fourier_order=5,
+    prior_scale=15.0  # Can override seasonality_prior_scale
 )
 
 m.fit(df)</code></pre>

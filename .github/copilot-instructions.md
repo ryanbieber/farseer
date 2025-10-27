@@ -196,5 +196,53 @@ The `params()` method returns a dictionary with fitted model parameters. Expand 
 - For regressor coefficients, use `farseer.utilities.regressor_coefficients(m)` helper
 - When adding new model parameters, update the params() serialization in `src/core/model.rs`
 
+## Documentation Update Requirements
+
+**CRITICAL**: Whenever making changes to features, APIs, or functionality, you MUST update the documentation to reflect those changes. This ensures documentation stays synchronized with the codebase.
+
+### Documentation Files to Update
+When making changes, update the relevant documentation files:
+
+1. **User-facing documentation** (`docs/` directory):
+   - `docs/index.html` - Main landing page, features overview
+   - `docs/quickstart.html` - Quick start guide and basic examples
+   - `docs/examples.html` - Comprehensive examples and use cases
+   - `docs/migration.html` - Migration guide from Prophet
+   - `docs/api-reference.html` - Complete API reference (if exists)
+
+2. **Repository documentation**:
+   - `README.md` - Project overview, installation, quick start, API reference
+   - `.github/copilot-instructions.md` - This file (for internal patterns/conventions)
+
+3. **Example code** (`examples/` directory):
+   - Update or add example scripts demonstrating new features
+   - Ensure all examples are tested and working
+
+### What to Update
+- **New features**: Add sections describing the feature, its usage, and examples
+- **API changes**: Update method signatures, parameters, return values
+- **Behavioral changes**: Document how behavior differs from previous versions
+- **Performance improvements**: Update benchmarks and performance claims
+- **Bug fixes**: If user-visible, note in changelog/release notes
+- **Deprecations**: Mark deprecated features and provide migration paths
+
+### Documentation Standards
+- **Be comprehensive**: Include description, parameters, examples, and edge cases
+- **Show code examples**: Provide working code snippets that users can copy/paste
+- **Compare with Prophet**: When relevant, show how Farseer differs from Prophet
+- **Use consistent formatting**: Follow existing doc structure and style
+- **Cross-reference**: Link between related documentation sections
+- **Keep it current**: Remove outdated information, update version numbers
+
+### Verification Checklist
+Before completing work on a feature:
+- [ ] Updated relevant HTML documentation pages
+- [ ] Updated README.md if user-facing
+- [ ] Added/updated code examples
+- [ ] Updated copilot-instructions.md for internal patterns
+- [ ] Verified all code examples work
+- [ ] Cross-referenced related documentation
+- [ ] Checked for consistency across all docs
+
 ## Request Feedback
 If any instructions are unclear or a deeper explanation of a component is needed, reply with the specific area (Rust core, Python wrapper, packaging, or tests) you'd like expanded.

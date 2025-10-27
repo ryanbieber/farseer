@@ -51,7 +51,8 @@
                 <li><a href="index.html#features">Features</a></li>
                 <li><a href="quickstart.html">Quick Start</a></li>
                 <li><a href="examples.html">Examples</a></li>
-                <li><a href="index.html#docs">Docs</a></li>
+                <li><a href="migration.html">Migration</a></li>
+                <li><a href="api-reference.html">API</a></li>
                 <li><a href="https://github.com/ryanbieber/seer" target="_blank">GitHub</a></li>
             </ul>
         </div>
@@ -266,20 +267,149 @@ print(f"Test RMSE: {rmse:.2f}")</code></pre>
             </div>
 
             <div class="step">
-                <h2><span class="step-number">6</span> Next Steps</h2>
-                <p>Now that you've got the basics, explore more advanced features:</p>
+                <h2><span class="step-number">6</span> Advanced Features</h2>
+
+                <h3>Weighted Observations</h3>
+                <p>Give more importance to recent or reliable data by adding a 'weight' column:</p>
+                <div class="code-block">
+                    <pre><code>import polars as pl
+import numpy as np
+from farseer import Farseer
+
+df = pl.DataFrame({
+    'ds': pl.date_range(datetime(2020, 1, 1), periods=100, interval='1d', eager=True),
+    'y': np.random.randn(100).cumsum() + 50,
+    'weight': [2.0 if i >= 80 else 1.0 for i in range(100)]  # Emphasize recent data
+})
+
+m = Farseer()
+m.fit(df)  # Weights automatically detected and used</code></pre>
+                </div>
+
+                <h3>Conditional Seasonality</h3>
+                <p>Apply seasonal patterns only when certain conditions are met:</p>
+                <div class="code-block">
+                    <pre><code>from farseer import Farseer
+
+m = Farseer()
+
+# Add seasonality that only applies on weekdays
+m.add_seasonality(
+    name='weekly_on_weekday',
+    period=7,
+    fourier_order=3,
+    condition_name='is_weekday'
+)
+
+# Add condition column to your data
+df = df.with_columns((pl.col('ds').dt.weekday() < 5).alias('is_weekday'))
+m.fit(df)
+
+# Remember to add condition to future dataframe too
+future = m.make_future_dataframe(periods=30)
+future = future.with_columns((pl.col('ds').dt.weekday() < 5).alias('is_weekday'))
+forecast = m.predict(future)</code></pre>
+                </div>
+
+                <h3>Floor & Cap (Logistic Growth)</h3>
+                <p>Model data with both upper and lower bounds:</p>
+                <div class="code-block">
+                    <pre><code>import polars as pl
+from farseer import Farseer
+
+# Logistic growth with floor (minimum) and cap (maximum)
+df = pl.DataFrame({
+    'ds': pl.date_range(datetime(2020, 1, 1), periods=100, interval='1d', eager=True),
+    'y': [...],  # Your data
+    'floor': 1.5,  # Minimum value
+    'cap': 10.0    # Maximum value
+})
+
+m = Farseer(growth='logistic')
+m.fit(df)
+
+# Add floor and cap to future dataframe
+future = m.make_future_dataframe(periods=30)
+future = future.with_columns([
+    pl.lit(1.5).alias('floor'),
+    pl.lit(10.0).alias('cap')
+])
+forecast = m.predict(future)</code></pre>
+                </div>
+
+                <h3>Smart Regressor Standardization</h3>
+                <p>Farseer automatically detects binary vs continuous regressors:</p>
+                <div class="code-block">
+                    <pre><code>from farseer import Farseer
+
+m = Farseer()
+
+# Binary regressor (0/1) - won't be standardized in 'auto' mode
+m.add_regressor('is_weekend', standardize='auto')
+
+# Continuous regressor - will be standardized in 'auto' mode
+m.add_regressor('temperature', standardize='auto')
+
+# Force standardization
+m.add_regressor('custom_feature', standardize='true')
+
+# Force no standardization
+m.add_regressor('manual_feature', standardize='false')
+
+m.fit(df)</code></pre>
+                </div>
+
+                <h3>Holiday Priors</h3>
+                <p>Different prior scales for different holidays:</p>
+                <div class="code-block">
+                    <pre><code>from farseer import Farseer
+
+m = Farseer()
+
+# Major holiday with strong prior
+m.add_holidays(
+    'christmas',
+    dates=['2020-12-25', '2021-12-25', '2022-12-25'],
+    prior_scale=20.0,  # Strong effect
+    lower_window=-1,   # Day before
+    upper_window=1     # Day after
+)
+
+# Minor event with weak prior
+m.add_holidays(
+    'minor_event',
+    dates=['2020-03-17', '2021-03-17'],
+    prior_scale=5.0    # Weak effect
+)
+
+m.fit(df)</code></pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <h2><span class="step-number">7</span> Next Steps</h2>
+                <p>Now that you've got the basics and advanced features, explore more:</p>
 
                 <ul>
-                    <li><a href="examples.html#weights">Weighted observations</a> - Give more importance to recent data</li>
+                    <li><a href="examples.html#weights">Weighted observations examples</a> - Advanced weighting strategies</li>
+                    <li><a href="examples.html#conditional">Conditional seasonality examples</a> - Complex seasonal patterns</li>
                     <li><a href="examples.html#regressors">Custom regressors</a> - Add additional variables</li>
+                    <li><a href="examples.html#floor">Floor and cap examples</a> - Saturating forecasts</li>
                     <li><a href="examples.html#changepoints">Manual changepoints</a> - Specify known trend changes</li>
                     <li><a href="examples.html#holidays">Holiday effects</a> - Model special events</li>
                     <li><a href="examples.html#performance">Performance optimization</a> - Maximize speed</li>
+                    <li><a href="migration.html">Migrating from Prophet</a> - Switch from Prophet</li>
                 </ul>
 
                 <div style="margin-top: 2rem; padding: 1.5rem; background: var(--light-bg); border-left: 4px solid var(--primary-color); border-radius: 4px;">
-                    <h3 style="margin-top: 0;">💡 Pro Tip</h3>
-                    <p>Use Polars DataFrames instead of Pandas for 5-10x better performance. Farseer is optimized for Polars but still supports Pandas for backward compatibility.</p>
+                    <h3 style="margin-top: 0;">💡 Pro Tips</h3>
+                    <ul style="margin-bottom: 0;">
+                        <li>Use Polars DataFrames instead of Pandas for 5-10x better performance</li>
+                        <li>Farseer automatically uses all CPU cores for parallel optimization</li>
+                        <li>The 'auto' standardize mode intelligently detects binary regressors</li>
+                        <li>Conditional seasonality is powerful for modeling weekday/weekend differences</li>
+                        <li>Save trained models with <code>m.save('model.json')</code> for deployment</li>
+                    </ul>
                 </div>
             </div>
         </div>

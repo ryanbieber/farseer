@@ -55,12 +55,16 @@ We've implemented Farseer in Rust for maximum performance, with Python bindings 
 
 | Feature | Farseer | Prophet |
 |---------|------|---------|
-| **� Performance** | Rust-powered, 5-10x faster | Python/Stan |
+| **🚀 Performance** | Rust-powered, 5-10x faster | Python/Stan |
 | **⚡ Multithreading** | Automatic parallel optimization | Single-threaded by default |
 | **💪 Weighted Data** | Native observation weights support | Not directly supported |
 | **📊 DataFrames** | Polars (fast) + Pandas (compatible) | Pandas only |
-| **🔧 Flexibility** | Multiple trend types, custom seasonality | Multiple trend types, custom seasonality |
-| **� Accuracy** | Bayesian approach with uncertainty | Bayesian approach with uncertainty |
+| **📅 Conditional Seasonality** | Fully supported | Fully supported |
+| **📏 Floor Parameter** | Full support (logistic growth) | Full support |
+| **🔧 Smart Regressors** | Auto-detects binary/continuous | Manual configuration |
+| **🎄 Holiday Priors** | Independent per-holiday scales | Independent per-holiday scales |
+| **🔍 Flexibility** | Multiple trend types, custom seasonality | Multiple trend types, custom seasonality |
+| **📈 Accuracy** | Bayesian approach with uncertainty | Bayesian approach with uncertainty |
 | **🐍 API** | Scikit-learn-like, Prophet-compatible | Scikit-learn-like |
 | **💾 Deployment** | Minimal dependencies, single binary | Requires Stan, PyStan, heavier |
 | **🔄 Migration** | Nearly identical API to Prophet | N/A |
@@ -163,13 +167,16 @@ shape: (5, 4)
 
 ### 🎯 Core Capabilities
 
-- **Multiple Trend Models**: Linear, logistic (with capacity), and flat trends
+- **Multiple Trend Models**: Linear, logistic (with capacity and floor), and flat trends
 - **Automatic Seasonality**: Yearly, weekly, and daily patterns
 - **Custom Seasonalities**: Add any periodic pattern (monthly, quarterly, etc.)
-- **Holiday Effects**: Model special events with customizable windows
+- **Conditional Seasonality**: Different patterns for different conditions (weekday/weekend)
+- **Holiday Effects**: Model special events with customizable windows and independent priors
+- **Smart Regressors**: Auto-detection of binary vs continuous with intelligent standardization
+- **Floor & Cap**: Full support for logistic growth with both upper and lower bounds
 - **Additive & Multiplicative Modes**: Per-component seasonality modes
 - **Uncertainty Intervals**: Configurable prediction intervals
-- **Changepoint Detection**: Automatic trend change detection
+- **Changepoint Detection**: Automatic or manual trend change points
 - **Model Serialization**: Save and load trained models as JSON
 - **Multiple Frequencies**: Hourly, daily, weekly, monthly, and yearly data support
 
@@ -483,12 +490,88 @@ m.add_seasonality('quarterly', period=91.25, fourier_order=8, mode='multiplicati
 m.fit(df)
 ```
 
+### Conditional Seasonality
+
+Apply seasonal patterns only when specific conditions are met:
+
+```python
+import polars as pl
+from farseer import Farseer
+
+m = Farseer()
+
+# Add seasonality that only applies on weekdays
+m.add_seasonality(
+    name='weekly_on_weekday',
+    period=7,
+    fourier_order=3,
+    condition_name='is_weekday'
+)
+
+# Add condition column to your data
+df = df.with_columns((pl.col('ds').dt.weekday() < 5).alias('is_weekday'))
+m.fit(df)
+
+# Remember to add condition to future dataframe too
+future = m.make_future_dataframe(periods=30)
+future = future.with_columns((pl.col('ds').dt.weekday() < 5).alias('is_weekday'))
+forecast = m.predict(future)
+```
+
+**Use cases:**
+- Different patterns for weekdays vs weekends
+- Seasonal behavior only during business hours
+- Holiday-specific patterns
+
+### Regressor Standardization
+
+Farseer intelligently handles regressor standardization with auto-detection:
+
+```python
+from farseer import Farseer
+
+m = Farseer()
+
+# Auto mode: detects binary (0/1) vs continuous
+m.add_regressor('is_weekend', standardize='auto')  # Binary → NOT standardized
+m.add_regressor('temperature', standardize='auto')  # Continuous → IS standardized
+
+# Force standardization (even for binary)
+m.add_regressor('feature1', standardize='true')
+
+# Force no standardization
+m.add_regressor('feature2', standardize='false')
+
+m.fit(df)
+```
+
+**Standardization modes:**
+- `'auto'` (default): Binary regressors (only 0/1 values) are NOT standardized; continuous regressors ARE standardized
+- `'true'`: Always standardize using z-score normalization
+- `'false'`: Never standardize
+
 ### Holidays
 
 ```python
-# Add holiday effects
+# Add holiday effects with independent prior scales
 m = Farseer()
-m.add_holidays('new_year', ['2020-01-01', '2021-01-01'])
+
+# Major holiday with strong effect
+m.add_holidays(
+    'christmas',
+    dates=['2020-12-25', '2021-12-25'],
+    prior_scale=20.0,  # Strong prior
+    lower_window=-1,   # Day before
+    upper_window=1     # Day after
+)
+
+# Minor event with weak effect
+m.add_holidays(
+    'minor_event',
+    dates=['2020-03-17'],
+    prior_scale=5.0    # Weak prior
+)
+
 m.fit(df)
 
 # Add country holidays
@@ -497,26 +580,37 @@ m.add_country_holidays('US')
 m.fit(df)
 ```
 
-### Logistic Growth
+**Holiday priors are independent from seasonality priors**, allowing fine-grained control over each event's impact.
+
+### Logistic Growth with Floor
+
+Model data with both upper (cap) and lower (floor) bounds:
 
 ```python
 import polars as pl
 from farseer import Farseer
 
-# Model with capacity constraint
+# Model with capacity constraint and minimum value
 df = pl.DataFrame({
     'ds': dates,
     'y': values,
-    'cap': [100.0] * len(dates)  # Set capacity
+    'floor': 1.5,   # Minimum value
+    'cap': 100.0    # Maximum value
 })
 
 m = Farseer(growth='logistic')
 m.fit(df)
 
+# Add floor and cap to future dataframe
 future = m.make_future_dataframe(periods=30)
-future = future.with_columns(pl.lit(100.0).alias('cap'))
+future = future.with_columns([
+    pl.lit(1.5).alias('floor'),
+    pl.lit(100.0).alias('cap')
+])
 forecast = m.predict(future)
 ```
+
+**Important:** When using floor, cap must be greater than floor for all data points.
 
 ### Model Persistence
 

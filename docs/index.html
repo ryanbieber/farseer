@@ -18,10 +18,11 @@
                 <span class="brand-name">Farseer</span>
             </div>
             <ul class="nav-links">
-                <li><a href="#features">Features</a></li>
-                <li><a href="#quickstart">Quick Start</a></li>
-                <li><a href="#examples">Examples</a></li>
-                <li><a href="#docs">Docs</a></li>
+                <li><a href="index.html#features">Features</a></li>
+                <li><a href="quickstart.html">Quick Start</a></li>
+                <li><a href="examples.html">Examples</a></li>
+                <li><a href="migration.html">Migration</a></li>
+                <li><a href="api-reference.html">API</a></li>
                 <li><a href="https://github.com/ryanbieber/seer" target="_blank">GitHub</a></li>
             </ul>
         </div>
@@ -85,6 +86,36 @@
                     <h3>Prophet Compatible</h3>
                     <p>Nearly identical API to Prophet. Migrate your existing code with minimal changes.</p>
                 </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📅</div>
+                    <h3>Conditional Seasonality</h3>
+                    <p>Apply seasonal patterns only when conditions are met (e.g., weekday vs weekend patterns).</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎄</div>
+                    <h3>Flexible Holidays</h3>
+                    <p>Independent holiday priors with customizable scales. Different effects for different events.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📈</div>
+                    <h3>Smart Regressors</h3>
+                    <p>Auto-detects binary vs continuous regressors. Standardizes appropriately for optimal results.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📏</div>
+                    <h3>Floor & Cap</h3>
+                    <p>Logistic growth with both upper (cap) and lower (floor) bounds for saturating forecasts.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💾</div>
+                    <h3>Model Serialization</h3>
+                    <p>Save and load trained models as JSON for deployment and reproducibility.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Parallel Optimization</h3>
+                    <p>Automatically uses all CPU cores for faster model fitting. Scales with your hardware.</p>
+                </div>
             </div>
         </div>
     </section>
@@ -121,6 +152,26 @@
                             <td>DataFrames</td>
                             <td><span class="highlight">Polars + Pandas</span></td>
                             <td>Pandas only</td>
+                        </tr>
+                        <tr>
+                            <td>Conditional Seasonality</td>
+                            <td><span class="highlight">Fully supported</span></td>
+                            <td>Fully supported</td>
+                        </tr>
+                        <tr>
+                            <td>Floor Parameter</td>
+                            <td><span class="highlight">Full support (logistic growth)</span></td>
+                            <td>Full support</td>
+                        </tr>
+                        <tr>
+                            <td>Regressor Standardization</td>
+                            <td><span class="highlight">Auto-detects binary/continuous</span></td>
+                            <td>Manual configuration</td>
+                        </tr>
+                        <tr>
+                            <td>Holiday Priors</td>
+                            <td><span class="highlight">Independent per-holiday scales</span></td>
+                            <td>Independent per-holiday scales</td>
                         </tr>
                         <tr>
                             <td>Deployment</td>
@@ -236,16 +287,39 @@ m.fit(df)</code></pre>
                 </div>
 
                 <div class="example-card">
-                    <h3>📈 Custom Regressors</h3>
+                    <h3>� Conditional Seasonality</h3>
+                    <p>Different patterns for different conditions</p>
+                    <div class="code-block">
+                        <pre><code>from farseer import Farseer
+
+m = Farseer()
+
+# Add conditional seasonality
+m.add_seasonality(
+    name='weekly_on_weekday',
+    period=7,
+    fourier_order=3,
+    condition_name='is_weekday'
+)
+
+# Add condition column
+df['is_weekday'] = (df['ds'].dt.weekday < 5)
+m.fit(df)</code></pre>
+                    </div>
+                    <a href="examples.html#conditional" class="example-link">Learn more →</a>
+                </div>
+
+                <div class="example-card">
+                    <h3>�📈 Custom Regressors</h3>
                     <p>Add additional variables to improve forecasts</p>
                     <div class="code-block">
                         <pre><code>from farseer import Farseer
 
 m = Farseer()
 
-# Add custom regressors
-m.add_regressor('temperature', prior_scale=10.0)
-m.add_regressor('is_weekend', mode='additive')
+# Auto-detects binary vs continuous
+m.add_regressor('temperature', standardize='auto')
+m.add_regressor('is_weekend', standardize='auto')
 m.add_regressor('promo', prior_scale=5.0)
 
 m.fit(train_df)
@@ -255,7 +329,27 @@ forecast = m.predict(test_df)</code></pre>
                 </div>
 
                 <div class="example-card">
-                    <h3>🔄 Manual Changepoints</h3>
+                    <h3>� Floor & Cap</h3>
+                    <p>Saturating growth with upper and lower bounds</p>
+                    <div class="code-block">
+                        <pre><code>from farseer import Farseer
+
+# Logistic growth with floor
+m = Farseer(growth='logistic')
+
+df['floor'] = 1.5  # Minimum value
+df['cap'] = 10.0   # Maximum value
+m.fit(df)
+
+future['floor'] = 1.5
+future['cap'] = 10.0
+forecast = m.predict(future)</code></pre>
+                    </div>
+                    <a href="examples.html#floor" class="example-link">Learn more →</a>
+                </div>
+
+                <div class="example-card">
+                    <h3>�🔄 Manual Changepoints</h3>
                     <p>Specify known trend changes in your data</p>
                     <div class="code-block">
                         <pre><code>from farseer import Farseer
@@ -276,19 +370,24 @@ forecast = m.predict(future)</code></pre>
 
                 <div class="example-card">
                     <h3>🎄 Holiday Effects</h3>
-                    <p>Model special events and holidays</p>
+                    <p>Model special events with independent priors</p>
                     <div class="code-block">
-                        <pre><code>import polars as pl
-from farseer import Farseer
+                        <pre><code>from farseer import Farseer
 
-holidays = pl.DataFrame({
-    'ds': pl.date_range(...),
-    'holiday': ['Christmas', 'New Year', ...],
-    'lower_window': 0,
-    'upper_window': 1
-})
+m = Farseer()
 
-m = Farseer(holidays=holidays)
+# Different priors for different holidays
+m.add_holidays(
+    'christmas',
+    dates=['2020-12-25', '2021-12-25'],
+    prior_scale=20.0  # Strong effect
+)
+m.add_holidays(
+    'minor_event',
+    dates=['2020-03-17'],
+    prior_scale=5.0   # Weak effect
+)
+
 m.fit(df)</code></pre>
                     </div>
                     <a href="examples.html#holidays" class="example-link">Learn more →</a>
@@ -311,7 +410,7 @@ m.fit(df)</code></pre>
                     <h3>Quick Start Guide</h3>
                     <p>Learn the basics in 5 minutes</p>
                 </a>
-                <a href="api.html" class="doc-card">
+                <a href="api-reference.html" class="doc-card">
                     <div class="doc-icon">📚</div>
                     <h3>API Reference</h3>
                     <p>Complete API documentation</p>
@@ -358,7 +457,8 @@ m.fit(df)</code></pre>
                     <ul>
                         <li><a href="quickstart.html">Quick Start</a></li>
                         <li><a href="examples.html">Examples</a></li>
-                        <li><a href="api.html">API Reference</a></li>
+                        <li><a href="api-reference.html">API Reference</a></li>
+                        <li><a href="migration.html">Migration Guide</a></li>
                         <li><a href="https://github.com/ryanbieber/seer">GitHub</a></li>
                     </ul>
                 </div>

@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Reference - Farseer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        .page-header {
+            background: var(--dark-bg);
+            color: var(--text-light);
+            padding: 4rem 0 3rem;
+        }
+        .page-content {
+            padding: 3rem 0;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .api-section {
+            margin-bottom: 4rem;
+        }
+        .api-section h2 {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+        .api-method {
+            background: white;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        .api-method h3 {
+            color: var(--text-dark);
+            margin-bottom: 0.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.3rem;
+        }
+        .api-signature {
+            background: var(--light-bg);
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+        }
+        .param-table {
+            width: 100%;
+            margin: 1.5rem 0;
+            border-collapse: collapse;
+        }
+        .param-table th,
+        .param-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .param-table th {
+            background: var(--light-bg);
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+        .param-table code {
+            background: var(--light-bg);
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+        }
+        .returns {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f0f9ff;
+            border-left: 4px solid #0ea5e9;
+            border-radius: 4px;
+        }
+        .example {
+            margin-top: 1.5rem;
+        }
+        .example h4 {
+            margin-bottom: 0.5rem;
+            color: var(--text-dark);
+        }
+        .toc {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 3rem;
+        }
+        .toc h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+        }
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        .toc li {
+            margin: 0.5rem 0;
+        }
+        .toc a {
+            color: var(--text-dark);
+            text-decoration: none;
+        }
+        .toc a:hover {
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <a href="index.html" style="text-decoration: none; color: inherit; display: flex; align-items: center; gap: 0.5rem;">
+                    <span class="logo">⚡</span>
+                    <span class="brand-name">Farseer</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="index.html#features">Features</a></li>
+                <li><a href="quickstart.html">Quick Start</a></li>
+                <li><a href="examples.html">Examples</a></li>
+                <li><a href="api-reference.html">API Reference</a></li>
+                <li><a href="https://github.com/ryanbieber/seer" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <header class="page-header">
+        <div class="container">
+            <h1>API Reference</h1>
+            <p>Complete documentation for the Farseer API</p>
+        </div>
+    </header>
+
+    <section class="page-content">
+        <div class="container">
+            <!-- Table of Contents -->
+            <div class="toc">
+                <h3>📚 Table of Contents</h3>
+                <ul>
+                    <li><a href="#initialization">Model Initialization</a></li>
+                    <li><a href="#fitting">Fitting Methods</a></li>
+                    <li><a href="#prediction">Prediction Methods</a></li>
+                    <li><a href="#seasonality">Seasonality Methods</a></li>
+                    <li><a href="#regressors">Regressor Methods</a></li>
+                    <li><a href="#holidays">Holiday Methods</a></li>
+                    <li><a href="#serialization">Serialization Methods</a></li>
+                    <li><a href="#utilities">Utility Functions</a></li>
+                </ul>
+            </div>
+
+            <!-- Model Initialization -->
+            <div id="initialization" class="api-section">
+                <h2>Model Initialization</h2>
+
+                <div class="api-method">
+                    <h3>Farseer()</h3>
+                    <p>Initialize a new Farseer forecasting model.</p>
+
+                    <div class="api-signature">
+<pre>Farseer(
+    growth='linear',
+    changepoints=None,
+    n_changepoints=25,
+    changepoint_range=0.8,
+    yearly_seasonality='auto',
+    weekly_seasonality='auto',
+    daily_seasonality='auto',
+    holidays=None,
+    seasonality_mode='additive',
+    seasonality_prior_scale=10.0,
+    holidays_prior_scale=10.0,
+    changepoint_prior_scale=0.05,
+    interval_width=0.80
+)</pre>
+                    </div>
+
+                    <h4>Parameters</h4>
+                    <table class="param-table">
+                        <thead>
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Type</th>
+                                <th>Default</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>growth</code></td>
+                                <td>str</td>
+                                <td>'linear'</td>
+                                <td>Type of trend. Options: 'linear', 'logistic', 'flat'</td>
+                            </tr>
+                            <tr>
+                                <td><code>changepoints</code></td>
+                                <td>list or None</td>
+                                <td>None</td>
+                                <td>List of dates at which to include potential changepoints. If None, automatically select.</td>
+                            </tr>
+                            <tr>
+                                <td><code>n_changepoints</code></td>
+                                <td>int</td>
+                                <td>25</td>
+                                <td>Number of potential changepoints to include. Not used if changepoints is specified.</td>
+                            </tr>
+                            <tr>
+                                <td><code>changepoint_range</code></td>
+                                <td>float</td>
+                                <td>0.8</td>
+                                <td>Proportion of history in which trend changepoints will be estimated. Range: [0, 1]</td>
+                            </tr>
+                            <tr>
+                                <td><code>yearly_seasonality</code></td>
+                                <td>bool or 'auto'</td>
+                                <td>'auto'</td>
+                                <td>Fit yearly seasonality. If 'auto', enabled for ≥ 2 cycles of data.</td>
+                            </tr>
+                            <tr>
+                                <td><code>weekly_seasonality</code></td>
+                                <td>bool or 'auto'</td>
+                                <td>'auto'</td>
+                                <td>Fit weekly seasonality. If 'auto', enabled for ≥ 2 cycles of data.</td>
+                            </tr>
+                            <tr>
+                                <td><code>daily_seasonality</code></td>
+                                <td>bool or 'auto'</td>
+                                <td>'auto'</td>
+                                <td>Fit daily seasonality. If 'auto', enabled for ≥ 2 cycles of data.</td>
+                            </tr>
+                            <tr>
+                                <td><code>holidays</code></td>
+                                <td>DataFrame or None</td>
+                                <td>None</td>
+                                <td>DataFrame with 'ds' (dates) and 'holiday' (names) columns.</td>
+                            </tr>
+                            <tr>
+                                <td><code>seasonality_mode</code></td>
+                                <td>str</td>
+                                <td>'additive'</td>
+                                <td>Mode for seasonality. Options: 'additive', 'multiplicative'</td>
+                            </tr>
+                            <tr>
+                                <td><code>seasonality_prior_scale</code></td>
+                                <td>float</td>
+                                <td>10.0</td>
+                                <td>Prior scale for seasonality. Larger values allow more flexible seasonality.</td>
+                            </tr>
+                            <tr>
+                                <td><code>holidays_prior_scale</code></td>
+                                <td>float</td>
+                                <td>10.0</td>
+                                <td>Default prior scale for holidays. Can be overridden per holiday.</td>
+                            </tr>
+                            <tr>
+                                <td><code>changepoint_prior_scale</code></td>
+                                <td>float</td>
+                                <td>0.05</td>
+                                <td>Prior scale for changepoint flexibility. Larger values = more flexible trend.</td>
+                            </tr>
+                            <tr>
+                                <td><code>interval_width</code></td>
+                                <td>float</td>
+                                <td>0.80</td>
+                                <td>Width of uncertainty intervals. Range: (0, 1]</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="example">
+                        <h4>Example</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+# Basic initialization
+m = Farseer()
+
+# Custom initialization
+m = Farseer(
+    growth='logistic',
+    yearly_seasonality=True,
+    weekly_seasonality=False,
+    changepoint_prior_scale=0.1,
+    seasonality_mode='multiplicative',
+    interval_width=0.95
+)</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fitting Methods -->
+            <div id="fitting" class="api-section">
+                <h2>Fitting Methods</h2>
+
+                <div class="api-method">
+                    <h3>fit(df)</h3>
+                    <p>Fit the Farseer model to historical data.</p>
+
+                    <div class="api-signature">
+<pre>fit(df)</pre>
+                    </div>
+
+                    <h4>Parameters</h4>
+                    <table class="param-table">
+                        <thead>
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>df</code></td>
+                                <td>DataFrame</td>
+                                <td>Historical data. Must have 'ds' (datetime) and 'y' (numeric) columns. Optional columns: 'cap', 'floor', 'weight', and any regressors.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="returns">
+                        <strong>Returns:</strong> self (Farseer object) - Fitted model
+                    </div>
+
+                    <div class="example">
+                        <h4>Example</h4>
+                        <div class="code-block">
+                            <pre><code>import polars as pl
+from datetime import datetime
+from farseer import Farseer
+
+# Create data
+df = pl.DataFrame({
+    'ds': pl.date_range(datetime(2020, 1, 1), periods=100, interval='1d', eager=True),
+    'y': range(100)
+})
+
+# Fit model
+m = Farseer()
+m.fit(df)
+
+# With optional columns
+df_with_extras = pl.DataFrame({
+    'ds': dates,
+    'y': values,
+    'cap': 200.0,        # For logistic growth
+    'floor': 10.0,       # Minimum value
+    'weight': weights,   # Observation weights
+    'temperature': temps # Regressor
+})
+
+m = Farseer(growth='logistic')
+m.add_regressor('temperature')
+m.fit(df_with_extras)</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prediction Methods -->
+            <div id="prediction" class="api-section">
+                <h2>Prediction Methods</h2>
+
+                <div class="api-method">
+                    <h3>predict(df=None)</h3>
+                    <p>Generate forecasts for future dates.</p>
+
+                    <div class="api-signature">
+<pre>predict(df=None)</pre>
+                    </div>
+
+                    <h4>Parameters</h4>
+                    <table class="param-table">
+                        <thead>
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>df</code></td>
+                                <td>DataFrame or None</td>
+                                <td>DataFrame with 'ds' column containing dates to predict. If None, uses historical dates.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="returns">
+                        <strong>Returns:</strong> DataFrame - Forecast with columns: ds, yhat, yhat_lower, yhat_upper, trend, and any seasonality/regressor components
+                    </div>
+
+                    <div class="example">
+                        <h4>Example</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+m = Farseer()
+m.fit(train_df)
+
+# Predict on future dates
+future = m.make_future_dataframe(periods=30)
+forecast = m.predict(future)
+
+# View results
+print(forecast.select(['ds', 'yhat', 'yhat_lower', 'yhat_upper']).tail())</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="api-method">
+                    <h3>make_future_dataframe(periods, freq='D', include_history=True)</h3>
+                    <p>Create a dataframe with future dates for prediction.</p>
+
+                    <div class="api-signature">
+<pre>make_future_dataframe(periods, freq='D', include_history=True)</pre>
+                    </div>
+
+                    <h4>Parameters</h4>
+                    <table class="param-table">
+                        <thead>
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Type</th>
+                                <th>Default</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>periods</code></td>
+                                <td>int</td>
+                                <td>-</td>
+                                <td>Number of periods to forecast forward</td>
+                            </tr>
+                            <tr>
+                                <td><code>freq</code></td>
+                                <td>str</td>
+                                <td>'D'</td>
+                                <td>Frequency: 'H' (hourly), 'D' (daily), 'W' (weekly), 'M' (monthly), 'Y' (yearly)</td>
+                            </tr>
+                            <tr>
+                                <td><code>include_history</code></td>
+                                <td>bool</td>
+                                <td>True</td>
+                                <td>Whether to include historical dates in the output</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="returns">
+                        <strong>Returns:</strong> DataFrame - DataFrame with 'ds' column containing dates
+                    </div>
+
+                    <div class="example">
+                        <h4>Example</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+m = Farseer()
+m.fit(df)
+
+# 30 days ahead (daily frequency)
+future_daily = m.make_future_dataframe(periods=30, freq='D')
+
+# 12 weeks ahead (weekly frequency)
+future_weekly = m.make_future_dataframe(periods=12, freq='W')
+
+# 6 months ahead (monthly frequency, ~30 days)
+future_monthly = m.make_future_dataframe(periods=6, freq='M')
+
+# Future only (no history)
+future_only = m.make_future_dataframe(periods=30, include_history=False)</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Seasonality Methods -->
+            <div id="seasonality" class="api-section">
+                <h2>Seasonality Methods</h2>
+
+                <div class="api-method">
+                    <h3>add_seasonality(name, period, fourier_order, prior_scale=None, mode=None, condition_name=None)</h3>
+                    <p>Add a custom seasonality component to the model.</p>
+
+                    <div class="api-signature">
+<pre>add_seasonality(
+    name,
+    period,
+    fourier_order,
+    prior_scale=None,
+    mode=None,
+    condition_name=None
+)</pre>
+                    </div>
+
+                    <h4>Parameters</h4>
+                    <table class="param-table">
+                        <thead>
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>name</code></td>
+                                <td>str</td>
+                                <td>Name of the seasonality component</td>
+                            </tr>
+                            <tr>
+                                <td><code>period</code></td>
+                                <td>float</td>
+                                <td>Period of the seasonality in days (e.g., 7 for weekly, 30.5 for monthly)</td>
+                            </tr>
+                            <tr>
+                                <td><code>fourier_order</code></td>
+                                <td>int</td>
+                                <td>Number of Fourier components. Higher values = more flexible seasonality</td>
+                            </tr>
+                            <tr>
+                                <td><code>prior_scale</code></td>
+                                <td>float or None</td>
+                                <td>Prior scale for this seasonality. If None, uses model's seasonality_prior_scale</td>
+                            </tr>
+                            <tr>
+                                <td><code>mode</code></td>
+                                <td>str or None</td>
+                                <td>'additive' or 'multiplicative'. If None, uses model's seasonality_mode</td>
+                            </tr>
+                            <tr>
+                                <td><code>condition_name</code></td>
+                                <td>str or None</td>
+                                <td>Column name for conditional seasonality. Seasonality only applies when this column is True</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="returns">
+                        <strong>Returns:</strong> self (Farseer object)
+                    </div>
+
+                    <div class="example">
+                        <h4>Example</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+m = Farseer()
+
+# Add monthly seasonality
+m.add_seasonality(name='monthly', period=30.5, fourier_order=5)
+
+# Add quarterly seasonality with custom prior
+m.add_seasonality(
+    name='quarterly',
+    period=91.25,
+    fourier_order=8,
+    prior_scale=15.0,
+    mode='multiplicative'
+)
+
+# Add conditional seasonality (weekday pattern)
+m.add_seasonality(
+    name='weekly_on_weekday',
+    period=7,
+    fourier_order=3,
+    condition_name='is_weekday'
+)
+
+# Add condition column to data
+df = df.with_columns((pl.col('ds').dt.weekday() < 5).alias('is_weekday'))
+m.fit(df)</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Regressor Methods -->
+            <div id="regressors" class="api-section">
+                <h2>Regressor Methods</h2>
+
+                <div class="api-method">
+                    <h3>add_regressor(name, prior_scale=None, standardize='auto', mode=None)</h3>
+                    <p>Add an additional regressor to be used for fitting and predicting.</p>
+
+                    <div class="api-signature">
+<pre>add_regressor(
+    name,
+    prior_scale=None,
+    standardize='auto',
+    mode=None
+)</pre>
+                    </div>
+
+                    <h4>Parameters</h4>
+                    <table class="param-table">
+                        <thead>
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>name</code></td>
+                                <td>str</td>
+                                <td>Name of the regressor (must match column in dataframe)</td>
+                            </tr>
+                            <tr>
+                                <td><code>prior_scale</code></td>
+                                <td>float or None</td>
+                                <td>Prior scale for the regressor. Larger values = more flexible. If None, uses 10.0</td>
+                            </tr>
+                            <tr>
+                                <td><code>standardize</code></td>
+                                <td>str</td>
+                                <td>'auto', 'true', or 'false'. Auto mode detects binary (0/1) vs continuous and standardizes accordingly</td>
+                            </tr>
+                            <tr>
+                                <td><code>mode</code></td>
+                                <td>str or None</td>
+                                <td>'additive' or 'multiplicative'. If None, uses model's seasonality_mode</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="returns">
+                        <strong>Returns:</strong> self (Farseer object)
+                    </div>
+
+                    <div class="example">
+                        <h4>Example</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+m = Farseer()
+
+# Binary regressor (auto mode won't standardize)
+m.add_regressor('is_weekend', standardize='auto')
+
+# Continuous regressor (auto mode will standardize)
+m.add_regressor('temperature', standardize='auto', prior_scale=10.0)
+
+# Force standardization
+m.add_regressor('sales', standardize='true', prior_scale=5.0)
+
+# No standardization
+m.add_regressor('pre_scaled_feature', standardize='false')
+
+# Must have regressor columns in dataframe
+df = pl.DataFrame({
+    'ds': dates,
+    'y': values,
+    'is_weekend': [0, 1, 0, ...],
+    'temperature': [15.2, 18.4, ...],
+    'sales': [100, 150, ...],
+    'pre_scaled_feature': [0.5, 0.7, ...]
+})
+
+m.fit(df)</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Holiday Methods -->
+            <div id="holidays" class="api-section">
+                <h2>Holiday Methods</h2>
+
+                <div class="api-method">
+                    <h3>add_holidays(name, dates, lower_window=0, upper_window=0, prior_scale=None)</h3>
+                    <p>Add holiday effects to the model with custom prior scales.</p>
+
+                    <div class="api-signature">
+<pre>add_holidays(
+    name,
+    dates,
+    lower_window=0,
+    upper_window=0,
+    prior_scale=None
+)</pre>
+                    </div>
+
+                    <h4>Parameters</h4>
+                    <table class="param-table">
+                        <thead>
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>name</code></td>
+                                <td>str</td>
+                                <td>Name of the holiday</td>
+                            </tr>
+                            <tr>
+                                <td><code>dates</code></td>
+                                <td>list</td>
+                                <td>List of datetime objects or date strings for the holiday</td>
+                            </tr>
+                            <tr>
+                                <td><code>lower_window</code></td>
+                                <td>int</td>
+                                <td>Number of days before the holiday to include in the window</td>
+                            </tr>
+                            <tr>
+                                <td><code>upper_window</code></td>
+                                <td>int</td>
+                                <td>Number of days after the holiday to include in the window</td>
+                            </tr>
+                            <tr>
+                                <td><code>prior_scale</code></td>
+                                <td>float or None</td>
+                                <td>Prior scale for this holiday. If None, uses model's holidays_prior_scale. Larger values allow stronger effects</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="returns">
+                        <strong>Returns:</strong> self (Farseer object)
+                    </div>
+
+                    <div class="example">
+                        <h4>Example</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+from datetime import datetime
+
+m = Farseer()
+
+# Major holiday with strong effect
+m.add_holidays(
+    'christmas',
+    dates=[
+        datetime(2020, 12, 25),
+        datetime(2021, 12, 25),
+        datetime(2022, 12, 25)
+    ],
+    prior_scale=20.0,
+    lower_window=-1,  # Day before
+    upper_window=1    # Day after
+)
+
+# Minor holiday with weak effect
+m.add_holidays(
+    'minor_event',
+    dates=['2020-03-17', '2021-03-17'],
+    prior_scale=5.0
+)
+
+# Using date strings
+m.add_holidays(
+    'new_year',
+    dates=['2021-01-01', '2022-01-01', '2023-01-01'],
+    prior_scale=10.0
+)
+
+m.fit(df)</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Serialization Methods -->
+            <div id="serialization" class="api-section">
+                <h2>Serialization Methods</h2>
+
+                <div class="api-method">
+                    <h3>save(filepath)</h3>
+                    <p>Save the trained model to a JSON file.</p>
+
+                    <div class="api-signature">
+<pre>save(filepath)</pre>
+                    </div>
+
+                    <h4>Parameters</h4>
+                    <table class="param-table">
+                        <thead>
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>filepath</code></td>
+                                <td>str</td>
+                                <td>Path where the model will be saved</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="example">
+                        <h4>Example</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+m = Farseer()
+m.fit(df)
+
+# Save model
+m.save('my_model.json')</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="api-method">
+                    <h3>Farseer.load(filepath)</h3>
+                    <p>Load a trained model from a JSON file.</p>
+
+                    <div class="api-signature">
+<pre>Farseer.load(filepath)</pre>
+                    </div>
+
+                    <h4>Parameters</h4>
+                    <table class="param-table">
+                        <thead>
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>filepath</code></td>
+                                <td>str</td>
+                                <td>Path to the saved model file</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="returns">
+                        <strong>Returns:</strong> Farseer object - Loaded model
+                    </div>
+
+                    <div class="example">
+                        <h4>Example</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+# Load saved model
+m = Farseer.load('my_model.json')
+
+# Make predictions with loaded model
+future = m.make_future_dataframe(periods=30)
+forecast = m.predict(future)
+
+# Note: Loaded models may require pandas DataFrames
+# due to PyO3 serialization limitations
+import pandas as pd
+future_pd = future.to_pandas()
+forecast = m.predict(future_pd)</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="api-method">
+                    <h3>to_json()</h3>
+                    <p>Serialize the model to a JSON string.</p>
+
+                    <div class="api-signature">
+<pre>to_json()</pre>
+                    </div>
+
+                    <div class="returns">
+                        <strong>Returns:</strong> str - JSON representation of the model
+                    </div>
+
+                    <div class="example">
+                        <h4>Example</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+m = Farseer()
+m.fit(df)
+
+# Get JSON string
+json_str = m.to_json()
+print(json_str[:100])  # First 100 characters</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="api-method">
+                    <h3>Farseer.from_json(json_str)</h3>
+                    <p>Deserialize a model from a JSON string.</p>
+
+                    <div class="api-signature">
+<pre>Farseer.from_json(json_str)</pre>
+                    </div>
+
+                    <h4>Parameters</h4>
+                    <table class="param-table">
+                        <thead>
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>json_str</code></td>
+                                <td>str</td>
+                                <td>JSON string representation of the model</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="returns">
+                        <strong>Returns:</strong> Farseer object - Deserialized model
+                    </div>
+
+                    <div class="example">
+                        <h4>Example</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+# Serialize
+m = Farseer()
+m.fit(df)
+json_str = m.to_json()
+
+# Deserialize
+m_loaded = Farseer.from_json(json_str)
+forecast = m_loaded.predict(future)</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Utility Functions -->
+            <div id="utilities" class="api-section">
+                <h2>Utility Functions</h2>
+
+                <div class="api-method">
+                    <h3>regressor_coefficients(model)</h3>
+                    <p>Extract regressor coefficients from a fitted model.</p>
+
+                    <div class="api-signature">
+<pre>from farseer import regressor_coefficients
+
+regressor_coefficients(model)</pre>
+                    </div>
+
+                    <h4>Parameters</h4>
+                    <table class="param-table">
+                        <thead>
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>model</code></td>
+                                <td>Farseer</td>
+                                <td>Fitted Farseer model</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="returns">
+                        <strong>Returns:</strong> DataFrame - Regressor names, coefficients, and standardization info
+                    </div>
+
+                    <div class="example">
+                        <h4>Example</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer, regressor_coefficients
+
+m = Farseer()
+m.add_regressor('temperature')
+m.add_regressor('is_weekend')
+m.fit(df)
+
+# Get coefficients
+coeffs = regressor_coefficients(m)
+print(coeffs)
+
+# Output:
+# shape: (2, 4)
+# ┌─────────────┬─────────────┬──────┬──────┐
+# │ regressor   ┆ coefficient ┆ mu   ┆ std  │
+# ├─────────────┼─────────────┼──────┼──────┤
+# │ temperature ┆ 0.523       ┆ 15.2 ┆ 5.3  │
+# │ is_weekend  ┆ -10.234     ┆ 0.0  ┆ 1.0  │
+# └─────────────┴─────────────┴──────┴──────┘</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="api-method">
+                    <h3>params()</h3>
+                    <p>Get model parameters as a dictionary.</p>
+
+                    <div class="api-signature">
+<pre>params()</pre>
+                    </div>
+
+                    <div class="returns">
+                        <strong>Returns:</strong> dict - Model parameters including k, m, delta, beta, sigma_obs, etc.
+                    </div>
+
+                    <div class="example">
+                        <h4>Example</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+m = Farseer()
+m.fit(df)
+
+# Get parameters
+params = m.params()
+print(f"Trend slope (k): {params['k']}")
+print(f"Trend offset (m): {params['m']}")
+print(f"Observation noise (sigma_obs): {params['sigma_obs']}")
+print(f"Fitted: {params['fitted']}")
+print(f"Logistic floor used: {params.get('logistic_floor', False)}")</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Farseer</h4>
+                    <p>High-performance time series forecasting in Rust</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="quickstart.html">Quick Start</a></li>
+                        <li><a href="examples.html">Examples</a></li>
+                        <li><a href="api-reference.html">API Reference</a></li>
+                        <li><a href="https://github.com/ryanbieber/seer">GitHub</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024-2025 Farseer. Built with ❤️ and Rust.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

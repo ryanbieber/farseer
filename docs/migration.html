@@ -66,7 +66,8 @@
                 <li><a href="index.html#features">Features</a></li>
                 <li><a href="quickstart.html">Quick Start</a></li>
                 <li><a href="examples.html">Examples</a></li>
-                <li><a href="index.html#docs">Docs</a></li>
+                <li><a href="migration.html">Migration</a></li>
+                <li><a href="api-reference.html">API</a></li>
                 <li><a href="https://github.com/ryanbieber/seer" target="_blank">GitHub</a></li>
             </ul>
         </div>
@@ -363,6 +364,245 @@ from farseer import Farseer
 m = Farseer()
 m.fit(large_df)  # Much faster with no extra code!</code></pre>
                 </div>
+
+                <h3>Conditional Seasonality</h3>
+                <p>Both Prophet and Farseer support conditional seasonality:</p>
+                <div class="comparison-grid">
+                    <div class="comparison-box before">
+                        <h4>Prophet</h4>
+                        <div class="code-block">
+                            <pre><code>from prophet import Prophet
+
+m = Prophet()
+m.add_seasonality(
+    name='weekly_weekday',
+    period=7,
+    fourier_order=3,
+    condition_name='is_weekday'
+)
+df['is_weekday'] = (df['ds'].dt.weekday < 5)
+m.fit(df)</code></pre>
+                        </div>
+                    </div>
+                    <div class="comparison-box after">
+                        <h4>Farseer (identical!)</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+m = Farseer()
+m.add_seasonality(
+    name='weekly_weekday',
+    period=7,
+    fourier_order=3,
+    condition_name='is_weekday'
+)
+df['is_weekday'] = (df['ds'].dt.weekday < 5)
+m.fit(df)</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <h3>Floor Parameter (Logistic Growth)</h3>
+                <p>Both support floor parameter for saturating minimum:</p>
+                <div class="comparison-grid">
+                    <div class="comparison-box before">
+                        <h4>Prophet</h4>
+                        <div class="code-block">
+                            <pre><code>from prophet import Prophet
+
+df['floor'] = 1.5
+df['cap'] = 10.0
+m = Prophet(growth='logistic')
+m.fit(df)
+
+future['floor'] = 1.5
+future['cap'] = 10.0
+forecast = m.predict(future)</code></pre>
+                        </div>
+                    </div>
+                    <div class="comparison-box after">
+                        <h4>Farseer (identical!)</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+df['floor'] = 1.5
+df['cap'] = 10.0
+m = Farseer(growth='logistic')
+m.fit(df)
+
+future['floor'] = 1.5
+future['cap'] = 10.0
+forecast = m.predict(future)</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <h3>Smart Regressor Standardization</h3>
+                <p>Farseer auto-detects binary vs continuous regressors:</p>
+                <div class="comparison-grid">
+                    <div class="comparison-box before">
+                        <h4>Prophet</h4>
+                        <div class="code-block">
+                            <pre><code>from prophet import Prophet
+
+m = Prophet()
+
+# Manual standardization control
+m.add_regressor('is_weekend', standardize=False)
+m.add_regressor('temperature', standardize=True)
+
+m.fit(df)</code></pre>
+                        </div>
+                    </div>
+                    <div class="comparison-box after">
+                        <h4>Farseer (smarter!)</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+m = Farseer()
+
+# Auto mode detects binary (0/1) vs continuous
+m.add_regressor('is_weekend', standardize='auto')
+m.add_regressor('temperature', standardize='auto')
+# Binary won't be standardized, continuous will be!
+
+m.fit(df)</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <h3>Independent Holiday Priors</h3>
+                <p>Both support per-holiday prior scales:</p>
+                <div class="comparison-grid">
+                    <div class="comparison-box before">
+                        <h4>Prophet</h4>
+                        <div class="code-block">
+                            <pre><code>from prophet import Prophet
+
+m = Prophet()
+
+m.add_country_holidays(
+    'US',
+    prior_scale=10.0
+)
+# Can customize per holiday with holidays DataFrame
+
+m.fit(df)</code></pre>
+                        </div>
+                    </div>
+                    <div class="comparison-box after">
+                        <h4>Farseer</h4>
+                        <div class="code-block">
+                            <pre><code>from farseer import Farseer
+
+m = Farseer()
+
+# Independent prior scales per holiday
+m.add_holidays(
+    'christmas',
+    dates=[...],
+    prior_scale=20.0  # Strong effect
+)
+m.add_holidays(
+    'minor_event',
+    dates=[...],
+    prior_scale=5.0   # Weak effect
+)
+
+m.fit(df)</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="migration-section">
+                <h2>Feature Comparison Table</h2>
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Prophet</th>
+                            <th>Farseer</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Basic Forecasting</td>
+                            <td>✅ Supported</td>
+                            <td>✅ Supported</td>
+                        </tr>
+                        <tr>
+                            <td>Linear/Logistic/Flat Growth</td>
+                            <td>✅ Supported</td>
+                            <td>✅ Supported</td>
+                        </tr>
+                        <tr>
+                            <td>Custom Seasonality</td>
+                            <td>✅ Supported</td>
+                            <td>✅ Supported</td>
+                        </tr>
+                        <tr>
+                            <td>Conditional Seasonality</td>
+                            <td>✅ Supported</td>
+                            <td>✅ Supported</td>
+                        </tr>
+                        <tr>
+                            <td>Floor Parameter</td>
+                            <td>✅ Supported</td>
+                            <td>✅ Supported</td>
+                        </tr>
+                        <tr>
+                            <td>Regressors</td>
+                            <td>✅ Supported</td>
+                            <td>✅ Supported</td>
+                        </tr>
+                        <tr>
+                            <td>Auto Regressor Standardization</td>
+                            <td>❌ Manual only</td>
+                            <td>✅ 'auto' mode</td>
+                        </tr>
+                        <tr>
+                            <td>Weighted Observations</td>
+                            <td>❌ Not supported</td>
+                            <td>✅ Native support</td>
+                        </tr>
+                        <tr>
+                            <td>Holidays</td>
+                            <td>✅ Supported</td>
+                            <td>✅ Supported</td>
+                        </tr>
+                        <tr>
+                            <td>Independent Holiday Priors</td>
+                            <td>✅ Supported</td>
+                            <td>✅ Supported</td>
+                        </tr>
+                        <tr>
+                            <td>Multithreading</td>
+                            <td>❌ Single-threaded</td>
+                            <td>✅ Automatic</td>
+                        </tr>
+                        <tr>
+                            <td>Polars DataFrames</td>
+                            <td>❌ Pandas only</td>
+                            <td>✅ Polars + Pandas</td>
+                        </tr>
+                        <tr>
+                            <td>Model Serialization</td>
+                            <td>✅ JSON/Pickle</td>
+                            <td>✅ JSON</td>
+                        </tr>
+                        <tr>
+                            <td>Uncertainty Intervals</td>
+                            <td>✅ Full posterior (MCMC)</td>
+                            <td>✅ Approximation (MAP)</td>
+                        </tr>
+                        <tr>
+                            <td>Performance</td>
+                            <td>⚠️ Slower</td>
+                            <td>✅ 5-10x faster</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
             <div class="migration-section">
