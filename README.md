@@ -17,6 +17,7 @@ A high-performance time series forecasting library built in Rust with Python bin
 
 ---
 
+
 > **⚡ Now using Polars!** Farseer uses Polars as its primary DataFrame library for 5-10x better performance. Pandas DataFrames are still supported for backward compatibility and automatically converted.
 
 ## What is Farseer?
