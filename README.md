@@ -6,9 +6,10 @@
 
 A high-performance time series forecasting library built in Rust with Python bindings. Farseer provides Prophet-like forecasting capabilities with the speed and reliability of Rust.
 
-[![Tests](https://img.shields.io/badge/tests-97%20passing-brightgreen)]()
+[![CI](https://github.com/ryanbieber/seer/actions/workflows/ci.yml/badge.svg)](https://github.com/ryanbieber/seer/actions/workflows/ci.yml)
+[![Release](https://github.com/ryanbieber/seer/actions/workflows/release.yml/badge.svg)](https://github.com/ryanbieber/seer/actions/workflows/release.yml)
+[![License](https://img.shields.io/github/license/ryanbieber/seer)](https://github.com/ryanbieber/seer/blob/master/LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-blue)]()
-[![Rust](https://img.shields.io/badge/rust-2021-orange)]()
 
 [**Documentation**](https://ryanbieber.github.io/seer/) | [**Quick Start**](#quick-start) | [**Installation**](#installation) | [**Examples**](#examples) | [**API Reference**](#api-reference)
 
