@@ -1,6 +1,6 @@
 [package]
 name = "farseer"
-version = "0.1.0"
+version = "0.2.2"
 edition = "2021"
 description = "A high-performance time series forecasting library with Prophet-compatible API"
 license = "GPL-3.0-or-later"
