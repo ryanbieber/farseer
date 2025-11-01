@@ -72,15 +72,16 @@
                 <div class="code-block">
                     <pre><code>import polars as pl
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from farseer import Farseer
 
 # Create data with weights
 np.random.seed(42)
 n = 100
+dates = [datetime(2020, 1, 1) + timedelta(days=i) for i in range(n)]
 
 df = pl.DataFrame({
-    'ds': pl.date_range(datetime(2020, 1, 1), periods=n, interval='1d', eager=True),
+    'ds': dates,
     'y': np.random.randn(n).cumsum() + 50,
     'weight': [2.0 if i < 50 else 1.0 for i in range(n)]  # Weight recent data more
 })
@@ -100,12 +101,13 @@ print(forecast.select(['ds', 'yhat', 'yhat_lower', 'yhat_upper']).tail())</code>
                 <div class="code-block">
                     <pre><code>import polars as pl
 import numpy as np
+from datetime import datetime, timedelta
 from farseer import Farseer
 
 # Create data with some outliers
 np.random.seed(42)
 n = 365
-dates = pl.date_range(datetime(2020, 1, 1), periods=n, interval='1d', eager=True)
+dates = [datetime(2020, 1, 1) + timedelta(days=i) for i in range(n)]
 y = np.random.randn(n).cumsum() + 100
 
 # Add outliers
@@ -144,20 +146,21 @@ forecast = m.predict(m.make_future_dataframe(periods=90))</code></pre>
                 <div class="code-block">
                     <pre><code>import polars as pl
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from farseer import Farseer, regressor_coefficients
 
 # Create sample data
 np.random.seed(42)
 n = 365 * 2
-dates = pl.date_range(datetime(2020, 1, 1), periods=n, interval='1d', eager=True)
+dates = [datetime(2020, 1, 1) + timedelta(days=i) for i in range(n)]
+dates_series = pl.Series("ds", dates)
 
 # Base trend and seasonality
 trend = np.arange(n) * 0.3 + 100
 yearly = 20 * np.sin(2 * np.pi * np.arange(n) / 365.25)
 
 # Create regressors
-is_weekend = (dates.dt.weekday() >= 5).cast(pl.Float64)
+is_weekend = (dates_series.dt.weekday() >= 5).cast(pl.Float64)
 temperature = 15 + 10 * np.sin(2 * np.pi * np.arange(n) / 365.25) + np.random.randn(n) * 3
 promo = np.zeros(n)
 promo[np.random.choice(n, 50, replace=False)] = 1
@@ -214,18 +217,18 @@ print(coeffs)</code></pre>
                 <div class="code-block">
                     <pre><code>import polars as pl
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from farseer import Farseer
 
 # Create data with known trend changes
 np.random.seed(42)
 n = 365 * 3
-dates = pl.date_range(datetime(2020, 1, 1), periods=n, interval='1d', eager=True)
+dates = [datetime(2020, 1, 1) + timedelta(days=i) for i in range(n)]
 
 # Create trend with changepoints at specific dates
 y = []
 base = 100
-for i, date in enumerate(dates.to_list()):
+for i, date in enumerate(dates):
     if date < datetime(2021, 1, 1):
         slope = 0.5  # Moderate growth
         y_val = base + slope * i
@@ -409,19 +412,20 @@ m.fit(df)</code></pre>
                 <div class="code-block">
                     <pre><code>import polars as pl
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from farseer import Farseer
 
 # Create data with different patterns on weekdays vs weekends
 np.random.seed(42)
 n = 365 * 2
-dates = pl.date_range(datetime(2020, 1, 1), periods=n, interval='1d', eager=True)
+dates = [datetime(2020, 1, 1) + timedelta(days=i) for i in range(n)]
+dates_series = pl.Series("ds", dates)
 
 # Base trend
 trend = np.arange(n) * 0.3 + 100
 
 # Different weekly patterns for weekdays vs weekends
-is_weekday = dates.dt.weekday() < 5
+is_weekday = dates_series.dt.weekday() < 5
 weekly_pattern = np.where(
     is_weekday,
     5 * np.sin(2 * np.pi * np.arange(n) / 7),      # Weekday pattern
@@ -539,13 +543,13 @@ forecast = m.predict(future)</code></pre>
                 <div class="code-block">
                     <pre><code>import polars as pl
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from farseer import Farseer
 
 # Create saturating data with both upper and lower bounds
 np.random.seed(42)
 n = 365 * 3
-dates = pl.date_range(datetime(2020, 1, 1), periods=n, interval='1d', eager=True)
+dates = [datetime(2020, 1, 1) + timedelta(days=i) for i in range(n)]
 
 # Logistic growth curve between floor and cap
 t = np.arange(n)
@@ -631,16 +635,17 @@ forecast = m.predict(future)</code></pre>
                 <div class="code-block">
                     <pre><code>import polars as pl
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from farseer import Farseer
 
 # Create data with mixed regressor types
 np.random.seed(42)
 n = 365 * 2
-dates = pl.date_range(datetime(2020, 1, 1), periods=n, interval='1d', eager=True)
+dates = [datetime(2020, 1, 1) + timedelta(days=i) for i in range(n)]
+dates_series = pl.Series("ds", dates)
 
 # Binary regressor (0 or 1)
-is_weekend = (dates.dt.weekday() >= 5).cast(pl.Int64)
+is_weekend = (dates_series.dt.weekday() >= 5).cast(pl.Int64)
 
 # Continuous regressor
 temperature = 15 + 10 * np.sin(2 * np.pi * np.arange(n) / 365.25) + np.random.randn(n) * 3
@@ -847,12 +852,13 @@ m.fit(df)</code></pre>
                     <pre><code>import polars as pl  # Recommended
 import pandas as pd
 from farseer import Farseer
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Polars (Recommended - 5-10x faster)
+dates = [datetime(2020, 1, 1) + timedelta(days=i) for i in range(1000)]
 df_polars = pl.DataFrame({
-    'ds': pl.date_range(datetime(2020, 1, 1), periods=1000, interval='1d', eager=True),
-    'y': range(1000)
+    'ds': dates,
+    'y': list(range(1000))
 })
 
 # Pandas (Still supported)

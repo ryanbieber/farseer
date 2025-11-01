@@ -104,18 +104,14 @@ maturin develop --release</code></pre>
 
                 <div class="code-block">
                     <pre><code>import polars as pl
-from datetime import datetime
+from datetime import datetime, timedelta
 from farseer import Farseer
 
 # Create sample data
+dates = [datetime(2020, 1, 1) + timedelta(days=i) for i in range(100)]
 df = pl.DataFrame({
-    'ds': pl.date_range(
-        datetime(2020, 1, 1),
-        periods=100,
-        interval='1d',
-        eager=True
-    ),
-    'y': range(100)  # Simple linear trend
+    'ds': dates,
+    'y': list(range(100))  # Simple linear trend
 })
 
 # Create and fit model
@@ -220,13 +216,13 @@ forecast = m.predict(future)</code></pre>
                 <div class="code-block">
                     <pre><code>import polars as pl
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from farseer import Farseer
 
 # Generate realistic data
 np.random.seed(42)
 n = 365 * 2  # 2 years of daily data
-dates = pl.date_range(datetime(2020, 1, 1), periods=n, interval='1d', eager=True)
+dates = [datetime(2020, 1, 1) + timedelta(days=i) for i in range(n)]
 
 # Create components
 t = np.arange(n)
@@ -274,10 +270,12 @@ print(f"Test RMSE: {rmse:.2f}")</code></pre>
                 <div class="code-block">
                     <pre><code>import polars as pl
 import numpy as np
+from datetime import datetime, timedelta
 from farseer import Farseer
 
+dates = [datetime(2020, 1, 1) + timedelta(days=i) for i in range(100)]
 df = pl.DataFrame({
-    'ds': pl.date_range(datetime(2020, 1, 1), periods=100, interval='1d', eager=True),
+    'ds': dates,
     'y': np.random.randn(100).cumsum() + 50,
     'weight': [2.0 if i >= 80 else 1.0 for i in range(100)]  # Emphasize recent data
 })
@@ -315,11 +313,13 @@ forecast = m.predict(future)</code></pre>
                 <p>Model data with both upper and lower bounds:</p>
                 <div class="code-block">
                     <pre><code>import polars as pl
+from datetime import datetime, timedelta
 from farseer import Farseer
 
 # Logistic growth with floor (minimum) and cap (maximum)
+dates = [datetime(2020, 1, 1) + timedelta(days=i) for i in range(100)]
 df = pl.DataFrame({
-    'ds': pl.date_range(datetime(2020, 1, 1), periods=100, interval='1d', eager=True),
+    'ds': dates,
     'y': [...],  # Your data
     'floor': 1.5,  # Minimum value
     'cap': 10.0    # Maximum value

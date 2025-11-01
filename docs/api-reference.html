@@ -334,13 +334,14 @@ m = Farseer(
                         <h4>Example</h4>
                         <div class="code-block">
                             <pre><code>import polars as pl
-from datetime import datetime
+from datetime import datetime, timedelta
 from farseer import Farseer
 
 # Create data
+dates = [datetime(2020, 1, 1) + timedelta(days=i) for i in range(100)]
 df = pl.DataFrame({
-    'ds': pl.date_range(datetime(2020, 1, 1), periods=100, interval='1d', eager=True),
-    'y': range(100)
+    'ds': dates,
+    'y': list(range(100))
 })
 
 # Fit model
